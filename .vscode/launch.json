@@ -1,0 +1,23 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python: Debug Opsin Analysis",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "opsin_analysis.main",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [
+                "--bam", "tests/input/aln_opsin_a004_a005.sorted.bam",
+                "--bed", "tests/input/opsin_region.bed",
+                "--ref", "/mnt/storage2/megSAP/data/genomes/GRCh38.fa",
+                "--anchors", "data/anchors.fasta",
+                "--out", "tests/output/opsin"
+            ]
+        }
+    ]
+}
