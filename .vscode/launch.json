@@ -18,6 +18,22 @@
                 "--anchors", "data/anchors.fasta",
                 "--out", "tests/output/opsin"
             ]
+        },
+        {
+            "name": "Python: Test Opsin Analysis",
+            "type": "debugpy",
+            "pythonArgs": ["-O"],
+            "request": "launch",
+            "module": "opsin_analysis.main",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [
+                "--bam", "tests/input/aln_opsin_a004_a005.sorted.bam",
+                "--bed", "tests/input/opsin_region.bed",
+                "--ref", "/mnt/storage2/megSAP/data/genomes/GRCh38.fa",
+                "--anchors", "data/anchors.fasta",
+                "--out", "tests/output/opsin"
+            ]
         }
     ]
 }

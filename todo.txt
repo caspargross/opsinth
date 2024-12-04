@@ -1,0 +1,4 @@
+- [ ] Add @PG line to bamfile
+- [ ] Fix Alignment Quality line
+- [ ] Better output / logging to stdout
+- [ ] Add IGV image generation / IGV-Web 

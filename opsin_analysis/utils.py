@@ -56,18 +56,25 @@ def reverse_cigar(cigarstring):
 
     return "".join(cigar_instructions[::-1])
 
-def write_bam_file(inbam, outbam, outf, reads_aligned, anchors, roi, unique_anchor_alignments, reads):
+def write_bam_file(results, reads, out_prefix, inbam):
+    #nbam, outbam, outf, reads_aligned, anchors, roi, unique_anchor_alignments, reads
+    outbam = f"{out_prefix}aligned_opsin_reads.bam"
+    reads_aligned = results['reads_aligned']
+    anchors = results['anchors']
+    roi = results['roi']
+    unique_anchor_alignments = results['unique_anchor_alignments']
+
     b = pysam.AlignmentFile(inbam, "rb")
 
     with pysam.AlignmentFile(outbam, "wb", template = b) as outf:
         for read in reads_aligned:
 
             if reads_aligned[read]['strand'] == "+" :
-                ref_start =  roi[0][1] + anchors[unique_anchor_alignments[read]]['start']
+                ref_start =  roi[0][1] + anchors['as_ref'][unique_anchor_alignments[read]]['start']
                 cigarstring = reads_aligned[read]['aln']['cigar']
                 query_sequence = reads_aligned[read]['seq']
             else:
-                ref_start = roi[0][1] + anchors[unique_anchor_alignments[read]]['end'] - reads_aligned[read]['ref_length']
+                ref_start = roi[0][1] + anchors['as_ref'][unique_anchor_alignments[read]]['end'] - reads_aligned[read]['ref_length']
                 cigarstring = reverse_cigar(reads_aligned[read]['aln']['cigar'])
                 query_sequence = reads_aligned[read]['seq'][::-1]
             a = pysam.AlignedSegment()

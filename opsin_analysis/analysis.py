@@ -25,15 +25,17 @@ def run_analysis(**kwargs):
     bam = kwargs.get('bam')
     roi = kwargs.get('roi')
     anchors = kwargs.get('anchors')
-    # Assuming unique_anchor_alignments and reads_aligned are derived from kwargs
-    unique_anchor_alignments = align_anchors(**kwargs)
-    reads_aligned = align_reads(kwargs)
-    
+    reads = kwargs.get('reads')
+    seq_ref = kwargs.get('seq_ref')
+    anchor_alignments = align_anchors(reads, anchors)
+    unique_read_anchors = find_read_anchors(reads, anchors, anchor_alignments)
+    reads_aligned = align_reads(reads, unique_read_anchors, anchor_alignments, seq_ref, anchors)
+
     return{
         'bam': bam,
         'roi': roi,
         'anchors': anchors,
-        'unique_anchor_alignments' : unique_anchor_alignments,
+        'unique_anchor_alignments' : unique_read_anchors,
         'reads_aligned': reads_aligned
     }
 
@@ -47,29 +49,27 @@ def sort_anchors(fasta_anchors, seq_ref):
             print("Best anchor match:", aln)
 
         anchors[anchor] = {
+            'seq': fasta_anchors[anchor],
             'start': aln['locations'][0][0],
             'end' : aln['locations'][0][1] 
             }
 
     #print(anchors)
     return{
-        'as_ref' : fasta_anchors,
+        'as_ref' : anchors,
         'forward' : [x[0] for x in sorted(anchors.items(), key=lambda x:x[1]['start'])],
         'reverse' : [x[0] for x in sorted(anchors.items(), key=lambda x:x[1]['end'], reverse=True)]
     }
 
 
-def align_anchors(**kwargs):
-    DISTANCE_THRESHOLD= 5
+def align_anchors(reads, anchors):
     anchor_alignments = {}
-    reads = kwargs.get('reads')
-    anchors = kwargs.get('anchors')
 
     for read in reads:
         seq = reads[read]['seq_query']
         anchor_alignments[read] = {}
         for anchor in anchors['as_ref']:
-            aln = edlib.align(anchors['as_ref'][anchor], seq, task="path", mode="HW")
+            aln = edlib.align(anchors['as_ref'][anchor]['seq'], seq, task="path", mode="HW")
             anchor_alignments[read][anchor] = aln
 
     print("Length of anchor table:", len(anchor_alignments))
@@ -83,8 +83,12 @@ def align_anchors(**kwargs):
     #  2) Extract coordinates
     #  3) Sort anchors matches ascending start
     #  4) Sort anchors matches by descending end
+    return anchor_alignments
 
-    unique_anchor_alignments = {}
+def find_read_anchors(reads, anchors, anchor_alignments):
+    DISTANCE_THRESHOLD= 5
+
+    unique_read_anchors = {}
     for read in anchor_alignments:
         lowest_anchor_index = 1e5  # Large number
         for anchor in anchor_alignments[read]:
@@ -95,30 +99,29 @@ def align_anchors(**kwargs):
                 else :
                     anchor_index = anchors['reverse'].index(anchor)            
                 if anchor_index < lowest_anchor_index:
-                    unique_anchor_alignments[read] = anchor
+                    unique_read_anchors[read] = anchor
 
-    print(unique_anchor_alignments)
-    print(Counter(unique_anchor_alignments.keys()))
-    print(Counter(unique_anchor_alignments.values()))
-    return(unique_anchor_alignments)
+    print(unique_read_anchors)
+    print(Counter(unique_read_anchors.keys()))
+    print(Counter(unique_read_anchors.values()))
+    return(unique_read_anchors)
 
 
-def align_reads(**kwargs):
+def align_reads(reads, unique_read_anchors, anchor_alignments, seq_ref, anchors):
     
     reads_aligned = {}
 
-
-    for read, anchor in unique_anchor_alignments.items():
+    for read, anchor in unique_read_anchors.items():
         print("Aligning:", read, ":", anchor)
 
         if reads[read]['strand'] == "+":
             seq_from_anchor = reads[read]['seq_query'][anchor_alignments[read][anchor]['locations'][0][0]:]
             qual_from_anchor = reads[read]['query_qualities'][anchor_alignments[read][anchor]['locations'][0][0]:]
-            ref_from_anchor = seq_ref[anchors[anchor]['start']:]
+            ref_from_anchor = seq_ref[anchors['as_ref'][anchor]['start']:]
         else:
             seq_from_anchor = reads[read]['seq_query'][:anchor_alignments[read][anchor]['locations'][0][1]][::-1]
             qual_from_anchor = reads[read]['query_qualities'][:anchor_alignments[read][anchor]['locations'][0][1]][::-1]
-            ref_from_anchor = seq_ref[:anchors[anchor]['end']][::-1]
+            ref_from_anchor = seq_ref[:anchors['as_ref'][anchor]['end']][::-1]
         
         print("Full read length:", len(reads[read]['seq_query']), "Read length trimmed after anchor:", len(seq_from_anchor))
 
@@ -133,3 +136,4 @@ def align_reads(**kwargs):
             'ref_length' : ref_length,
             'query_qualities' : qual_from_anchor,
         }
+    return reads_aligned

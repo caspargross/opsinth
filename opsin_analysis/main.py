@@ -1,5 +1,6 @@
 # opsin_analysis/main.py
 import argparse
+import os
 from opsin_analysis.analysis import *
 from opsin_analysis.plotting import *
 
@@ -19,12 +20,18 @@ def main():
     # Run analysis
     results = run_analysis(**dataset)
     
-    # Generate plots
-    plot_alignment_quality(results, args.out)
+    # Generate outputs
+    
+    # Create output directory from path component of output prefix
+    output_dir = os.path.dirname(args.out)
+    if output_dir:
+        os.makedirs(output_dir, exist_ok=True)
+    
     plot_coverage(results, args.out)
+    plot_alignment_quality(results, args.out)
+    write_bam_file(results, dataset.get('reads'), args.out, args.bam)
 
-    # Write bamfile
-    write_bam_file(results, args.out)
+    print("Finished application")
 
 if __name__ == "__main__":
     main()
