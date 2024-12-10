@@ -2,7 +2,7 @@
 from opsinth.utils import *
 import matplotlib.pyplot as plt
 
-def plot_coverage(results, output_dir):
+def plot_coverage(results, output_prefix):
     logging.info("Starting coverage plot generation")
     coverages = results['anchors']['as_ref']
     roi = results['roi']
@@ -34,12 +34,12 @@ def plot_coverage(results, output_dir):
 
     plt.stackplot(x, values, step='pre', labels=labels)
     plt.legend()
-    plt.savefig(f"{output_dir}coverage_plot.png")
+    plt.savefig(f"{output_prefix}.coverage_plot.png")
     plt.close()
 
     logging.info("Coverage plot saved successfully")
 
-def plot_alignment_quality(results, output_dir):
+def plot_alignment_quality(results, output_prefix):
     edit_distances = []
     matched_query_lengths = []
     colors = []
@@ -64,5 +64,5 @@ def plot_alignment_quality(results, output_dir):
     plt.ylabel("Edit distance to reference genome")
     plt.title("Edit Distance vs Aligned Read Length")
     plt.xlim(min(matched_query_lengths), max(matched_query_lengths))
-    plt.savefig(f"{output_dir}alignment_quality_plot.png")
+    plt.savefig(f"{output_prefix}.alignment_quality_plot.png")
     plt.close()

@@ -13,12 +13,13 @@
 </head>
 <body>
     <div id="igv-container"></div>
+    <button id="export-svg">Export to SVG</button>
     <script>
         document.addEventListener("DOMContentLoaded", function () {
             const igvContainer = document.getElementById("igv-container");
             const options = {
-                genome: "GRCh38",  // Placeholder for reference genome
-                locus: "chrX:154143338-154295780 ",  // Placeholder for target region
+                genome: "hg38",  // Placeholder for reference genome
+                locus: "chrX:154143338-154295780",  // Placeholder for target region
                 tracks: [
                     {
                         name: "Reference Genome",
@@ -29,12 +30,24 @@
                     {
                         name: "BAM File",
                         type: "alignment",
-                        url: "tests/output/opsin",  // Placeholder for BAM file path
-                        indexURL: "tests/output/opsin.bai"  // Placeholder for BAM index file path
+                        url: "opsinth.bam",  // Placeholder for BAM file path
+                        indexURL: "opsinth.bam.bai"  // Placeholder for BAM index file path
                     }
                 ]
             };
-            igv.createBrowser(igvContainer, options);
+            igv.createBrowser(igvContainer, options).then(function (browser) {
+                document.getElementById("export-svg").addEventListener("click", function () {
+                    browser.toSVG().then(function (svg) {
+                        const blob = new Blob([svg], {type: "image/svg+xml"});
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement("a");
+                        a.href = url;
+                        a.download = "igv_view.svg";
+                        a.click();
+                        URL.revokeObjectURL(url);
+                    });
+                });
+            });
         });
     </script>
 </body>

@@ -35,14 +35,17 @@ class Opsinth:
         # Run analysis
         results = run_analysis(**dataset)
         
-        # Create output directory from path component of output prefix
+        # Determine output directory and prefix
         output_dir = os.path.dirname(args.out)
         if output_dir:
             os.makedirs(output_dir, exist_ok=True)
+            out_prefix = os.path.join(output_dir, "opsinth")
+        else:
+            out_prefix = args.out
         
-        plot_coverage(results, output_dir)
-        plot_alignment_quality(results, output_dir)
-        write_bam_file(results, dataset.get('reads'), args.out, args.bam, VERSION)
+        plot_coverage(results, out_prefix)
+        plot_alignment_quality(results, out_prefix)
+        write_bam_file(results, dataset.get('reads'), out_prefix, args.bam, VERSION)
 
         if not args.no_igv:
             # Convert ROI list to string format for IGV.js
@@ -51,7 +54,7 @@ class Opsinth:
             logging.debug(f"Formatted Target Region: {target_region}")
             
             # Create IGV HTML file
-            create_igv_html(output_dir, args.out, dataset.get('ref', 'GRCh38'), target_region)
+            create_igv_html(output_dir, os.path.basename(out_prefix), dataset.get('ref', 'hg38'), target_region)
 
             # Open IGV viewer
             open_igv_viewer(output_dir)

@@ -60,8 +60,8 @@ def reverse_cigar(cigarstring):
 
 def write_bam_file(results, reads, out_prefix, inbam, version):
     #nbam, outbam, outf, reads_aligned, anchors, roi, unique_anchor_alignments, reads
-    unsortedbam = f"{out_prefix}aligned_opsin_reads.unsorted.bam"
-    outbam = f"{out_prefix}aligned_opsin_reads.bam"
+    unsortedbam = f"{out_prefix}.unsorted.bam"
+    outbam = f"{out_prefix}.bam"
     reads_aligned = results['reads_aligned']
     anchors = results['anchors']
     roi = results['roi']
@@ -72,8 +72,8 @@ def write_bam_file(results, reads, out_prefix, inbam, version):
     
     # Create a header with a @PG line
     pg_line = {
-            'ID': 'opsin_analysis',  # Program ID
-            'PN': 'opsin_analysis',  # Program name
+            'ID': 'opsinth',  # Program ID
+            'PN': 'opsinth',  # Program name
             'VN': version,             # Program version
             'CL': ' '.join(sys.argv)  # Command line (you can customize this)
     }
