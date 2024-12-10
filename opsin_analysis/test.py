@@ -1,5 +1,6 @@
 # opsin_analysis/main.py
 import argparse
+from opsin_analysis.utils import *
 from opsin_analysis.analysis import *
 from opsin_analysis.plotting import *
 

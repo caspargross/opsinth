@@ -1,5 +1,6 @@
 # opsin_analysis/utils.py
 import pysam
+import logging
 
 def read_bed_file(bed_path, n_window=100):
     roi = []
@@ -91,3 +92,26 @@ def write_bam_file(results, reads, out_prefix, inbam):
             outf.write(a)
 
     b.close()
+
+def configure_logging(verbosity=0):
+    """Configure logging based on verbosity level.
+    
+    Args:
+        verbosity (int): Verbosity level (0=WARNING, 1=INFO, 2=DEBUG)
+    """
+    log_levels = {
+        0: logging.WARNING,  # -v not specified (default)
+        1: logging.INFO,     # -v
+        2: logging.DEBUG,    # -vv
+    }
+    
+    # Get the appropriate level or default to WARNING
+    level = log_levels.get(verbosity, logging.DEBUG)
+    
+    # Configure logging
+    logging.basicConfig(
+        level=level,
+        format='%(asctime)s - %(levelname)s - %(message)s'
+    )
+    
+    logging.debug(f"Logging level set to: {logging.getLevelName(level)}")
