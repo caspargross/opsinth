@@ -1,3 +1,4 @@
 pysam
 matplotlib
 edlib
+mappy

@@ -1,5 +1,5 @@
 # opsin_analysis/plotting.py
-from opsin_analysis.utils import *
+from opsinth.utils import *
 import matplotlib.pyplot as plt
 
 def plot_coverage(results, output_dir):

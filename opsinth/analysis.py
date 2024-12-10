@@ -1,8 +1,8 @@
-# opsin_analysis/analysis.py
+# opsinth/analysis.py
 import pysam
 import edlib
 from collections import Counter
-from opsin_analysis.utils import *
+from opsinth.utils import *
 
 def read_files(bam_path, bed_path, ref_path, anchors_path):
     

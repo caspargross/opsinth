@@ -5,7 +5,7 @@ from http.server import HTTPServer, SimpleHTTPRequestHandler
 from threading import Thread
 
 def create_igv_html(output_dir, bam_file, ref_genome, target_region):
-    template_path = os.path.join(os.path.dirname(__file__), "igv_viewer_template.html")
+    template_path = os.path.join(os.path.dirname(__file__), "/resources/igv_viewer_template.html")
     
     with open(template_path, "r") as template_file:
         html_content = template_file.read()

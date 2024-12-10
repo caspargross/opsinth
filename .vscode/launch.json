@@ -8,7 +8,7 @@
             "name": "Python: Debug Opsin Analysis",
             "type": "debugpy",
             "request": "launch",
-            "module": "opsin_analysis.main",
+            "module": "opsinth",
             "console": "integratedTerminal",
             "justMyCode": true,
             "args": [
@@ -24,7 +24,7 @@
             "name": "Python: Debug WGS Opsin Analysis",
             "type": "debugpy",
             "request": "launch",
-            "module": "opsin_analysis.main",
+            "module": "opsinth",
             "console": "integratedTerminal",
             "justMyCode": true,
             "args": [
@@ -40,7 +40,7 @@
             "type": "debugpy",
             "pythonArgs": ["-O"],
             "request": "launch",
-            "module": "opsin_analysis.main",
+            "module": "opsinth",
             "console": "integratedTerminal",
             "justMyCode": true,
             "args": [
