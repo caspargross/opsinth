@@ -59,6 +59,7 @@ def reverse_cigar(cigarstring):
 
 def write_bam_file(results, reads, out_prefix, inbam):
     #nbam, outbam, outf, reads_aligned, anchors, roi, unique_anchor_alignments, reads
+    unsortedbam = f"{out_prefix}aligned_opsin_reads.unsorted.bam"
     outbam = f"{out_prefix}aligned_opsin_reads.bam"
     reads_aligned = results['reads_aligned']
     anchors = results['anchors']
@@ -67,7 +68,7 @@ def write_bam_file(results, reads, out_prefix, inbam):
 
     b = pysam.AlignmentFile(inbam, "rb")
 
-    with pysam.AlignmentFile(outbam, "wb", template = b) as outf:
+    with pysam.AlignmentFile(unsortedbam, "wb", template = b) as outf:
         for read in reads_aligned:
 
             if reads_aligned[read]['strand'] == "+" :
@@ -90,6 +91,30 @@ def write_bam_file(results, reads, out_prefix, inbam):
             a.tags = reads[read]['tags']
 
             outf.write(a)
+    
+    # Sort the temporary BAM file and write to the final output BAM file
+    sort_successful = False
+    index_successful = False
+
+    try:
+        pysam.sort("-o", outbam, unsortedbam)
+        sort_successful = True
+    except Exception as e:
+        logging.error(f"Error sorting BAM file: {e}")
+
+    # Index the sorted BAM file
+    try:
+        pysam.index(outbam)
+        index_successful = True
+    except Exception as e:
+        logging.error(f"Error indexing BAM file: {e}")
+
+    # Remove the temporary BAM file only if both operations were successful
+    if sort_successful and index_successful:
+        import os
+        os.remove(unsortedbam)
+        logging.info("Sorting and Indexing successfull, removed temp output")
+
 
     b.close()
 
