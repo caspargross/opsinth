@@ -36,18 +36,37 @@ def plot_coverage(results, output_dir):
     plt.legend()
     plt.savefig(f"{output_dir}coverage_plot.png")
     #plt.show()
+    plt.close()
 
 def plot_alignment_quality(results, output_dir):
     edit_distances = []
     matched_query_lengths = []
+    colors = []  # List to hold colors for each point
+
+    # Extract anchors and assign colors
+    anchors = results['anchors']['as_ref'].keys()
+    anchor_color_map = {anchor: plt.cm.tab10(i) for i, anchor in enumerate(anchors)}  # Use a colormap for colors
 
     for read in results['reads_aligned']:
         edit_distances.append(results['reads_aligned'][read]['aln']['editDistance'])
         matched_query_lengths.append(len(results['reads_aligned'][read]['seq']))
+        
+        # Get the anchor for the current read from results
+        anchor = results['unique_anchor_alignments'][read]
+        colors.append(anchor_color_map.get(anchor, 'gray'))  # Default to gray if anchor not found
 
-    plt.scatter(matched_query_lengths, edit_distances, edgecolors='black')
+    # Create a scatter plot
+    plt.scatter(matched_query_lengths, edit_distances, edgecolors='black', c=colors)
+
+    # Create a legend using unique anchors
+    handles = [plt.Line2D([0], [0], marker='o', color='w', label=anchor,
+                          markerfacecolor=anchor_color_map[anchor]) for anchor in anchors]
+    plt.legend(handles=handles, title="Anchors")
+
     plt.xlabel("Aligned read length (bp)")
     plt.ylabel("Edit distance to reference genome")
     plt.title("Edit Distance vs Aligned Read Length")
+    plt.xlim(min(matched_query_lengths), max(matched_query_lengths))
     plt.savefig(f"{output_dir}alignment_quality_plot.png")
     #plt.show()
+    plt.close()

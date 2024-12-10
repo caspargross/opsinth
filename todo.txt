@@ -1,4 +1,6 @@
+- [ ] Fix read orientation for WGS anchors
 - [ ] Add @PG line to bamfile
-- [ ] Fix Alignment Quality line
+- [ ] Create BAM index
+- [X] Fix Alignment Quality plot
 - [ ] Better output / logging to stdout
-- [ ] Add IGV image generation / IGV-Web 
+- [ ] Add IGV image generation / include IGV-Web 
