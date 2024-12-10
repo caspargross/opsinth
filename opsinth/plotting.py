@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 
 def plot_coverage(results, output_prefix):
     logging.info("Starting coverage plot generation")
-    coverages = results['anchors']['as_ref']
+    coverages = results['anchors']['anchor_positions']
     roi = results['roi']
 
     logging.debug(f"Processing coverage data for ROI: {roi}")
@@ -44,7 +44,7 @@ def plot_alignment_quality(results, output_prefix):
     matched_query_lengths = []
     colors = []
 
-    anchors = results['anchors']['as_ref'].keys()
+    anchors = results['anchors']['anchor_positions'].keys()
     anchor_color_map = {anchor: plt.cm.tab10(i) for i, anchor in enumerate(anchors)}
 
     for read in results['reads_aligned']:

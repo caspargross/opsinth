@@ -3,6 +3,7 @@
 - [ ] Generate new ref by overlapping reads
 - [ ] Polish consensus (racon)
 - [ ] Find overlapping longest reads
+- [ ] Indel Realignment / Merging in edlib alignments required
 - [ ] Fix read orientation for WGS anchors
 - [X] Add @PG line to bamfile
 - [X] Create BAM index

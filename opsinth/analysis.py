@@ -34,8 +34,8 @@ def run_analysis(**kwargs):
     anchors = kwargs.get('anchors')
     reads = kwargs.get('reads')
     seq_ref = kwargs.get('seq_ref')
-    anchor_alignments = align_anchors(reads, anchors)
-    unique_read_anchors = find_read_anchors(reads, anchors, anchor_alignments)
+    anchor_alignments = find_anchors_on_reads(reads, anchors)
+    unique_read_anchors = find_unique_read_anchors(reads, anchors, anchor_alignments)
     reads_aligned = align_reads(reads, unique_read_anchors, anchor_alignments, seq_ref, anchors)
 
     return{
@@ -48,6 +48,19 @@ def run_analysis(**kwargs):
 
 
 def sort_anchors(fasta_anchors, seq_ref):
+    
+    """Sort anchor sequences by aligning them to the reference sequence.
+
+    Args:
+        fasta_anchors (dict): Dictionary mapping anchor names to sequences
+        seq_ref (str): Reference sequence to align anchors against
+
+    Returns:
+        dict: Dictionary containing:
+            - anchor_positions: Anchor alignments with start/end positions
+            - forward: List of anchor names sorted by start position
+            - reverse: List of anchor names sorted by end position (reversed)
+    """
     anchors = {}
     for anchor in fasta_anchors:
         aln = edlib.align(fasta_anchors[anchor], seq_ref, task="path", mode="HW")
@@ -63,43 +76,60 @@ def sort_anchors(fasta_anchors, seq_ref):
 
     logging.debug(f"Processed anchors: {anchors}")
     return {
-        'as_ref': anchors,
+        'anchor_positions': anchors,
         'forward': [x[0] for x in sorted(anchors.items(), key=lambda x: x[1]['start'])],
         'reverse': [x[0] for x in sorted(anchors.items(), key=lambda x: x[1]['end'], reverse=True)]
     }
 
 
-def align_anchors(reads, anchors):
+def find_anchors_on_reads(reads, anchors):
+    """
+    Align anchors to reads.
+
+    Parameters:
+    reads (dict): A dictionary containing read sequences and their metadata.
+    anchors (dict): A dictionary containing anchor sequences and their positions on the reference genome.
+
+    Returns:
+    dict: A dictionary containing anchor alignments for each read.
+    """
     anchor_alignments = {}
 
     for read in reads:
         seq = reads[read]['seq_query']
         anchor_alignments[read] = {}
-        for anchor in anchors['as_ref']:
-            aln = edlib.align(anchors['as_ref'][anchor]['seq'], seq, task="path", mode="HW")
+        for anchor in anchors['anchor_positions']:
+            aln = edlib.align(anchors['anchor_positions'][anchor]['seq'], seq, task="path", mode="HW")
             anchor_alignments[read][anchor] = aln
 
     logging.debug("Length of anchor table: %d", len(anchor_alignments))
 
-    # Reads that match more then one anchor sequence span multiple anchors. To get the correct start position we need to chose the correct anchor sequence as follows: 
-    #  - Take  the anchor with _lowest_ coordinates when on the forward strand
-    #  - Select the anchor with _highest_ coordinates when on the reverse strand
-
-    # In order to get correct coordinates: 
-    #  1) First align anchors to ref genome
-    #  2) Extract coordinates
-    #  3) Sort anchors matches ascending start
-    #  4) Sort anchors matches by descending end
     return anchor_alignments
 
-def find_read_anchors(reads, anchors, anchor_alignments):
-    DISTANCE_THRESHOLD= 5
+def find_unique_read_anchors(reads, anchors, anchor_alignments):
+    """Return unique anchor matches for each read. Makes sure that read orientation is respected and
+      anchors are as close as possible to the read start. When multiple anchors are found, the anchor
+      with the lowest chromosome coordinate is selected.
+
+    For reads that match multiple anchor sequences, select the correct anchor based on strand:
+    - Forward read: Choose anchor with lowest coordinates 
+    - Reverse read: Choose anchor with highest coordinates
+
+    Args:
+        reads (dict): Dictionary containing read sequences and metadata
+        anchors (dict): Dictionary containing anchor sequences and positions
+        anchor_alignments (dict): Dictionary containing anchor alignments for each read
+
+    Returns:
+        dict: Dictionary mapping read IDs to their unique anchor match
+    """
+    EDIT_DISTANCE_THRESHOLD= 5
 
     unique_read_anchors = {}
     for read in anchor_alignments:
         lowest_anchor_index = 1e5  # Large number
         for anchor in anchor_alignments[read]:
-            if anchor_alignments[read][anchor]['editDistance'] < DISTANCE_THRESHOLD:
+            if anchor_alignments[read][anchor]['editDistance'] < EDIT_DISTANCE_THRESHOLD:
                 
                 if reads[read]['strand'] == "+":
                     anchor_index = anchors['forward'].index(anchor)
@@ -107,27 +137,62 @@ def find_read_anchors(reads, anchors, anchor_alignments):
                     anchor_index = anchors['reverse'].index(anchor)            
                 if anchor_index < lowest_anchor_index:
                     unique_read_anchors[read] = anchor
-
+    # For reads with two good anchors, we could align them twice, this might skew results however.
     logging.debug("Anchors per read: ", Counter(unique_read_anchors.keys()))
     logging.debug("Reads per anchor: ", Counter(unique_read_anchors.values()))
     return(unique_read_anchors)
 
 
 def align_reads(reads, unique_read_anchors, anchor_alignments, seq_ref, anchors):
-    
+    """Align reads to reference sequence starting from anchor positions.
+
+    For each read with a unique anchor match, align the portion of the read after the anchor
+    to the reference sequence starting from that anchor's position. For reverse reads, align
+    the portion before the anchor to the reference sequence before the anchor position.
+
+    Args:
+        reads (dict): Dictionary containing read sequences and metadata
+        unique_read_anchors (dict): Dictionary mapping read IDs to their unique anchor match
+        anchor_alignments (dict): Dictionary containing anchor alignments for each read
+        seq_ref (str): Reference sequence string
+        anchors (dict): Dictionary containing anchor sequences and positions
+
+    Returns:
+        dict: Dictionary containing aligned read information including:
+            - strand: Read orientation (+ or -)
+            - aln: Alignment details from edlib
+            - seq: Read sequence used for alignment
+            - ref_length: Length of aligned reference sequence
+            - query_qualities: Base quality scores for aligned sequence
+    """
     reads_aligned = {}
 
     for read, anchor in unique_read_anchors.items():
         logging.debug("Aligning: %s : %s", read, anchor)
 
-        if reads[read]['strand'] == "+":
-            seq_from_anchor = reads[read]['seq_query'][anchor_alignments[read][anchor]['locations'][0][0]:]
-            qual_from_anchor = reads[read]['query_qualities'][anchor_alignments[read][anchor]['locations'][0][0]:]
-            ref_from_anchor = seq_ref[anchors['as_ref'][anchor]['start']:]
+        is_lower_anchor = anchors['forward'].index(anchor) < anchors['reverse'].index(anchor)
+
+        if reads[read]['strand'] == "+" :
+            if is_lower_anchor:
+                seq_from_anchor = reads[read]['seq_query'][anchor_alignments[read][anchor]['locations'][0][0]:]
+                qual_from_anchor = reads[read]['query_qualities'][anchor_alignments[read][anchor]['locations'][0][0]:]
+                ref_from_anchor = seq_ref[anchors['anchor_positions'][anchor]['start']:]
+            else: # is_higher_anchor
+                seq_from_anchor = reads[read]['seq_query'][anchor_alignments[read][anchor]['locations'][0][1]:]
+                qual_from_anchor = reads[read]['query_qualities'][anchor_alignments[read][anchor]['locations'][0][1]:]
+                ref_from_anchor = seq_ref[:anchors['anchor_positions'][anchor]['end']]
+        elif reads[read]['strand'] == "-":
+            if is_lower_anchor:
+                seq_from_anchor = reads[read]['seq_query'][:anchor_alignments[read][anchor]['locations'][0][1]][::-1]
+                qual_from_anchor = reads[read]['query_qualities'][:anchor_alignments[read][anchor]['locations'][0][1]][::-1]
+                ref_from_anchor = seq_ref[:anchors['anchor_positions'][anchor]['end']][::-1]
+            else: # is_higher_anchor
+                seq_from_anchor = reads[read]['seq_query'][:anchor_alignments[read][anchor]['locations'][0][0]][::-1]
+                qual_from_anchor = reads[read]['query_qualities'][:anchor_alignments[read][anchor]['locations'][0][0]][::-1]
+                ref_from_anchor = seq_ref[:anchors['anchor_positions'][anchor]['start']][::-1]
         else:
-            seq_from_anchor = reads[read]['seq_query'][:anchor_alignments[read][anchor]['locations'][0][1]][::-1]
-            qual_from_anchor = reads[read]['query_qualities'][:anchor_alignments[read][anchor]['locations'][0][1]][::-1]
-            ref_from_anchor = seq_ref[:anchors['as_ref'][anchor]['end']][::-1]
+            logging.error("Read %s has invalid strand: %s", read, reads[read]['strand'])
+            continue
         
         logging.debug(
             "Full read length: %d, Read length trimmed after anchor: %d",

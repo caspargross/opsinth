@@ -16,7 +16,7 @@
                 "--bed", "tests/input/opsin_region.bed",
                 "--ref", "/mnt/storage2/megSAP/data/genomes/GRCh38.fa",
                 "--anchors", "data/crispr_anchors.fasta",
-                "--out", "tests/output/opsin",
+                "--out", "tests/out/crispr/a004",
                 "-vv"
             ]
         },
@@ -31,8 +31,25 @@
                 "--bam", "tests/input/aln_opsin_a004_a005.sorted.bam",
                 "--bed", "tests/input/opsin_region.bed",
                 "--ref", "/mnt/storage2/megSAP/data/genomes/GRCh38.fa",
-                "--anchors", "data/crispr_anchors.fasta",
-                "--out", "tests/output/opsin"
+                "--anchors", "data/wgs_anchors.fasta",
+                "--out", "tests/out/wgs/a004_wgs_coords"
+            ]
+        },
+        {
+            "name": "Python: Debug WGS Finland",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "opsinth",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [
+                "--bam", "/mnt/storage3b/projects/no_ngsd/ahgrosc1_colour_vision_collab/Sample_CV009/CV009.bam",
+                "--bed", "tests/input/opsin_region.bed",
+                "--ref", "/mnt/storage2/megSAP/data/genomes/GRCh38.fa",
+                "--anchors", "data/wgs_anchors.fasta",
+                "--out", "tests/out/wgs_cv009/cv009",
+                "-vv",
+                "--no-igv"	
             ]
         },
         {

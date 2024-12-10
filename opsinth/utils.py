@@ -85,11 +85,11 @@ def write_bam_file(results, reads, out_prefix, inbam, version):
         for read in reads_aligned:
 
             if reads_aligned[read]['strand'] == "+" :
-                ref_start =  roi[0][1] + anchors['as_ref'][unique_anchor_alignments[read]]['start']
+                ref_start =  roi[0][1] + anchors['anchor_positions'][unique_anchor_alignments[read]]['start']
                 cigarstring = reads_aligned[read]['aln']['cigar']
                 query_sequence = reads_aligned[read]['seq']
             else:
-                ref_start = roi[0][1] + anchors['as_ref'][unique_anchor_alignments[read]]['end'] - reads_aligned[read]['ref_length']
+                ref_start = roi[0][1] + anchors['anchor_positions'][unique_anchor_alignments[read]]['end'] - reads_aligned[read]['ref_length']
                 cigarstring = reverse_cigar(reads_aligned[read]['aln']['cigar'])
                 query_sequence = reads_aligned[read]['seq'][::-1]
             a = pysam.AlignedSegment()
