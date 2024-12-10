@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>IGV.js Viewer</title>
+    <script src="https://cdn.jsdelivr.net/npm/igv@2.9.4/dist/igv.min.js"></script>
+    <style>
+        #igv-container {
+            width: 100%;
+            height: 500px;
+        }
+    </style>
+</head>
+<body>
+    <div id="igv-container"></div>
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+            const igvContainer = document.getElementById("igv-container");
+            const options = {
+                genome: "GRCh38",  // Placeholder for reference genome
+                locus: "chrX:154143338-154295780 ",  // Placeholder for target region
+                tracks: [
+                    {
+                        name: "Reference Genome",
+                        type: "sequence",
+                        order: Number.MAX_VALUE,
+                        visibilityWindow: 10000000
+                    },
+                    {
+                        name: "BAM File",
+                        type: "alignment",
+                        url: "tests/output/opsin",  // Placeholder for BAM file path
+                        indexURL: "tests/output/opsin.bai"  // Placeholder for BAM index file path
+                    }
+                ]
+            };
+            igv.createBrowser(igvContainer, options);
+        });
+    </script>
+</body>
+</html> 

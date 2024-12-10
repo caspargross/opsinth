@@ -1,6 +1,11 @@
+- [ ] Define what to do with female samples (haploid X)
+- [ ] Integrate output from Paraphase
+- [ ] Generate new ref by overlapping reads
+- [ ] Polish consensus (racon)
+- [ ] Find overlapping longest reads
 - [ ] Fix read orientation for WGS anchors
 - [X] Add @PG line to bamfile
 - [X] Create BAM index
 - [X] Fix Alignment Quality plot
 - [X] Better output / logging to stdout
-- [ ] Add IGV image generation / include IGV-Web 
+- [X] Add IGV image generation / include IGV-Web 

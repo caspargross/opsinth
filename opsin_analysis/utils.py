@@ -79,7 +79,7 @@ def write_bam_file(results, reads, out_prefix, inbam, version):
     }
     
     header['PG'].append(pg_line)
-    print(header['PG'])
+    logging.debug("header['PG']: %s", header['PG'])
 
     with pysam.AlignmentFile(unsortedbam, "wb", header = header) as outf:
         for read in reads_aligned:

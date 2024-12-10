@@ -48,7 +48,8 @@
                 "--bed", "tests/input/opsin_region.bed",
                 "--ref", "/mnt/storage2/megSAP/data/genomes/GRCh38.fa",
                 "--anchors", "data/crispr_anchors.fasta",
-                "--out", "tests/output/opsin"
+                "--out", "tests/output/opsin",
+                "-v"
             ]
         }
     ]
