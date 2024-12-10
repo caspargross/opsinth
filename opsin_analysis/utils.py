@@ -1,6 +1,7 @@
 # opsin_analysis/utils.py
 import pysam
 import logging
+import sys
 
 def read_bed_file(bed_path, n_window=100):
     roi = []
@@ -57,7 +58,7 @@ def reverse_cigar(cigarstring):
 
     return "".join(cigar_instructions[::-1])
 
-def write_bam_file(results, reads, out_prefix, inbam):
+def write_bam_file(results, reads, out_prefix, inbam, version):
     #nbam, outbam, outf, reads_aligned, anchors, roi, unique_anchor_alignments, reads
     unsortedbam = f"{out_prefix}aligned_opsin_reads.unsorted.bam"
     outbam = f"{out_prefix}aligned_opsin_reads.bam"
@@ -67,8 +68,20 @@ def write_bam_file(results, reads, out_prefix, inbam):
     unique_anchor_alignments = results['unique_anchor_alignments']
 
     b = pysam.AlignmentFile(inbam, "rb")
+    header = b.header.to_dict()
+    
+    # Create a header with a @PG line
+    pg_line = {
+            'ID': 'opsin_analysis',  # Program ID
+            'PN': 'opsin_analysis',  # Program name
+            'VN': version,             # Program version
+            'CL': ' '.join(sys.argv)  # Command line (you can customize this)
+    }
+    
+    header['PG'].append(pg_line)
+    print(header['PG'])
 
-    with pysam.AlignmentFile(unsortedbam, "wb", template = b) as outf:
+    with pysam.AlignmentFile(unsortedbam, "wb", header = header) as outf:
         for read in reads_aligned:
 
             if reads_aligned[read]['strand'] == "+" :
@@ -97,7 +110,7 @@ def write_bam_file(results, reads, out_prefix, inbam):
     index_successful = False
 
     try:
-        pysam.sort("-o", outbam, unsortedbam)
+        pysam.sort("-o", outbam, unsortedbam, add_pg=True)
         sort_successful = True
     except Exception as e:
         logging.error(f"Error sorting BAM file: {e}")

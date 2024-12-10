@@ -1,5 +1,5 @@
 - [ ] Fix read orientation for WGS anchors
-- [ ] Add @PG line to bamfile
+- [X] Add @PG line to bamfile
 - [X] Create BAM index
 - [X] Fix Alignment Quality plot
 - [X] Better output / logging to stdout

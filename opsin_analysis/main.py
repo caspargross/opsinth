@@ -1,4 +1,6 @@
 # opsin_analysis/main.py
+VERSION = "0.1" 
+
 import argparse
 import os
 import logging
@@ -38,7 +40,7 @@ def main():
     
     plot_coverage(results, output_dir)
     plot_alignment_quality(results, output_dir)
-    write_bam_file(results, dataset.get('reads'), args.out, args.bam)
+    write_bam_file(results, dataset.get('reads'), args.out, args.bam, VERSION)
 
     logging.info("Completed successfully")
 
