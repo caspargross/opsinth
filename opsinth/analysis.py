@@ -291,7 +291,6 @@ def align_reads_to_ref(reads, no_anchor_reads, unique_read_anchors, double_ancho
             'aln' : aln,
             'seq' : query,
             'ref_length' : ref_length,
-            'query_qualities' : query_qualities,
         }
 
     
@@ -301,10 +300,11 @@ def align_reads_to_ref(reads, no_anchor_reads, unique_read_anchors, double_ancho
     for read in no_anchor_reads:
         logging.debug("Aligning: %s : %s", read, no_anchor_reads[read])
         reads_aligned[read] = align_read_to_ref(read, seq_ref, "HW")
+        reads_aligned[read]['query_qualities'] = reads[read]['query_qualities']
         
-        if reads[read]['strand'] == "+":
+        if reads[read]['strand'] == "+": # + Forward read
             alignment_cases['G'] += 1
-        else:
+        else: # - Reverse read
             alignment_cases['H'] += 1
 
     # Align reads with unique anchors (PrefixAlignment)
@@ -313,7 +313,7 @@ def align_reads_to_ref(reads, no_anchor_reads, unique_read_anchors, double_ancho
 
         is_lower_anchor = anchors['forward'].index(anchor) < anchors['reverse'].index(anchor)
 
-        if reads[read]['strand'] == "+" :
+        if reads[read]['strand'] == "+" : # + Forward read  
             if is_lower_anchor: # Case A
                 seq_from_anchor = reads[read]['seq_query'][anchor_alignments[read][anchor]['locations'][0][0]:]
                 qual_from_anchor = reads[read]['query_qualities'][anchor_alignments[read][anchor]['locations'][0][0]:]
@@ -324,7 +324,7 @@ def align_reads_to_ref(reads, no_anchor_reads, unique_read_anchors, double_ancho
                 qual_from_anchor = reads[read]['query_qualities'][:anchor_alignments[read][anchor]['locations'][0][1]][::-1]
                 ref_from_anchor = seq_ref[:anchors['anchor_positions'][anchor]['end']][::-1]
                 alignment_cases['B'] += 1
-        elif reads[read]['strand'] == "-":
+        elif reads[read]['strand'] == "-": # - Reverse read
             if is_lower_anchor: # Case C
                 seq_from_anchor = reads[read]['seq_query'][anchor_alignments[read][anchor]['locations'][0][0]:]
                 qual_from_anchor = reads[read]['query_qualities'][anchor_alignments[read][anchor]['locations'][0][0]:]
@@ -335,7 +335,6 @@ def align_reads_to_ref(reads, no_anchor_reads, unique_read_anchors, double_ancho
                 qual_from_anchor = reads[read]['query_qualities'][:anchor_alignments[read][anchor]['locations'][0][1]][::-1]
                 ref_from_anchor = seq_ref[:anchors['anchor_positions'][anchor]['end']][::-1]
                 alignment_cases['D'] += 1
-        else:
             logging.error("Read %s has invalid strand: %s", read, reads[read]['strand'])
             continue
         
@@ -345,12 +344,31 @@ def align_reads_to_ref(reads, no_anchor_reads, unique_read_anchors, double_ancho
             len(seq_from_anchor)
         )
 
-        reads_aligned[read] = align_read_to_ref(read, seq_ref, "SHW")
+        reads_aligned[read] = align_read_to_ref(read, ref_from_anchor, "SHW")
+        reads_aligned[read]['query_qualities'] = qual_from_anchor
 
+    # Align reads with double anchors (Global Alignment)
     for read in double_anchor_reads:
         logging.debug("Aligning: %s : %s", read, double_anchor_reads[read])
         
-        reads_aligned[read] = align_read_to_ref(read, seq_ref, "SHW")
+        if reads[read]['strand'] == "+" :   # + Forward read
+            seq = reads[read]['seq_query'][double_anchor_reads[read][0]['locations'][0][0]:double_anchor_reads[read][1]['locations'][0][1]]
+            qual = reads[read]['query_qualities'][double_anchor_reads[read][0]['locations'][0][0]:double_anchor_reads[read][1]['locations'][0][1]]
+            ref = seq_ref
+            alignment_cases['E'] += 1
+        else:                               # - Reverse read
+            seq = reads[read]['seq_query'][double_anchor_reads[read][0]['locations'][0][0]:double_anchor_reads[read][1]['locations'][0][1]][::-1]
+            qual = reads[read]['query_qualities'][double_anchor_reads[read][0]['locations'][0][0]:double_anchor_reads[read][1]['locations'][0][1]][::-1]
+            ref = seq_ref[::-1]
+            alignment_cases['F'] += 1
+
+        reads_aligned[read] = align_read_to_ref(seq, ref, "NW")
+        reads_aligned[read]['query_qualities'] = qual
+        logging.debug(
+            "Full read length: %d, Read length trimmed after anchor: %d",
+            len(reads[read]['seq_query']),
+            len(seq)
+        )
 
     logging.debug("Alignment cases: %s", alignment_cases)   
     return reads_aligned
