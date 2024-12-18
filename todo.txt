@@ -6,6 +6,7 @@
 - [ ] Fix overhanging read ends for long reads. Maybe use softclips? Or cut to roi before alignment?
 - [ ] Fix coverage plot for denovo seq
 - [ ] What is up with seqs that completely fail to map?
+- [ ] Multiple alignments for reads without anchors
 - [X] Write fasta for denovo seq
 - [X] Generate new ref by overlapping reads
 - [X] Find overlapping longest reads

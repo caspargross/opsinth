@@ -3,13 +3,13 @@ import pysam
 import logging
 import sys
 
-def read_bed_file(bed_path, n_window= 100):
+def read_bed_file(bed_path):
     roi = []
     with open(bed_path) as f:
         for line in f:
             l = line.strip().split()
-            l[1] = max(0, int(l[1]) - n_window)
-            l[2] = int(l[2]) + n_window
+            l[1] = max(0, int(l[1]))
+            l[2] = int(l[2])
             roi.append(l)
     return roi
 
@@ -65,6 +65,7 @@ def write_bam_file(results, reads, out_prefix, inbam, version):
     reads_aligned = results['reads_aligned']
     anchors = results['anchors']
     roi = results['roi']
+    ref_length = roi[0][2] - roi[0][1]
     unique_anchor_alignments = results['unique_anchor_alignments']
 
     b = pysam.AlignmentFile(inbam, "rb")
@@ -85,11 +86,12 @@ def write_bam_file(results, reads, out_prefix, inbam, version):
         for read in reads_aligned:
 
             if reads_aligned[read]['strand'] == "+" :
-                ref_start =  roi[0][1] + anchors['anchor_positions'][unique_anchor_alignments[read]]['start']
+                ref_start =  roi[0][1] + reads_aligned[read]['aln']['locations'][0][1]
                 cigarstring = reads_aligned[read]['aln']['cigar']
                 query_sequence = reads_aligned[read]['seq']
             else:
-                ref_start = roi[0][1] + anchors['anchor_positions'][unique_anchor_alignments[read]]['end'] - reads_aligned[read]['ref_length']
+                # This might be a source of bugs
+                ref_start = roi[0][2] - reads_aligned[read]['aln']['locations'][0][0] - reads_aligned[read]['ref_length']
                 cigarstring = reverse_cigar(reads_aligned[read]['aln']['cigar'])
                 query_sequence = reads_aligned[read]['seq'][::-1]
             a = pysam.AlignedSegment()
@@ -165,11 +167,12 @@ def write_bam_denovo(results, reads, out_prefix, version):
         for read in reads_aligned:
 
             if reads_aligned[read]['strand'] == "+" :
-                ref_start =  roi[0][1] + anchors['anchor_positions'][unique_anchor_alignments[read]]['start']
+                ref_start =  roi[0][1] + reads_aligned[read]['aln']['locations'][0][1]
                 cigarstring = reads_aligned[read]['aln']['cigar']
                 query_sequence = reads_aligned[read]['seq']
             else:
-                ref_start = roi[0][1] + anchors['anchor_positions'][unique_anchor_alignments[read]]['end'] - reads_aligned[read]['ref_length']
+                # This might be a source of bugs
+                ref_start = roi[0][2] - reads_aligned[read]['aln']['locations'][0][0] - reads_aligned[read]['ref_length']
                 cigarstring = reverse_cigar(reads_aligned[read]['aln']['cigar'])
                 query_sequence = reads_aligned[read]['seq'][::-1]
             a = pysam.AlignedSegment()

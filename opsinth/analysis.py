@@ -36,7 +36,7 @@ def run_ref_analysis(**kwargs):
     seq_ref = kwargs.get('seq_ref')
     anchor_alignments = find_anchors_on_reads(reads, anchors)
     (no_anchor_reads, unique_read_anchors, double_anchor_reads) = characterize_read_anchors(reads, anchors, anchor_alignments)
-    reads_aligned = align_reads_to_ref(reads, unique_read_anchors, anchor_alignments, seq_ref, anchors)
+    reads_aligned = align_reads_to_ref(reads, no_anchor_reads, unique_read_anchors, double_anchor_reads, anchor_alignments, seq_ref, anchors)
 
     return{
         'bam': bam,
@@ -55,11 +55,10 @@ def run_denovo_analysis(double_anchor_reads, reads, anchors):
     aligned_anchors_draft = align_anchors_to_ref(anchors, seq_draft)
     reads_with_anchors_draft = find_anchors_on_reads(reads, aligned_anchors_draft)
     (no_anchor_reads, unique_read_anchors, double_anchor_reads) = characterize_read_anchors(reads, aligned_anchors_draft, reads_with_anchors_draft)
-    reads_aligned_draft = align_reads_to_ref(reads, unique_read_anchors, reads_with_anchors_draft, seq_draft, aligned_anchors_draft)
+    reads_aligned_draft = align_reads_to_ref(reads, no_anchor_reads, unique_read_anchors, double_anchor_reads, reads_with_anchors_draft, seq_draft, aligned_anchors_draft)
 
     
     # Update roi = max extend of anchors on draft seq
-    N_WINDOW = 100
     min_pos = 1e8
     max_pos = 0
     for read in reads_with_anchors_draft:
@@ -69,12 +68,13 @@ def run_denovo_analysis(double_anchor_reads, reads, anchors):
             min_pos = min(min_pos, current_min)
             max_pos = max(max_pos, current_max)
     
-    roi = [["denovo_ref", min_pos - N_WINDOW, max_pos + N_WINDOW]]
+    roi = [["denovo_ref", min_pos, max_pos]]
     
     return {
         'seq_denovo': seq_draft,
         'roi': roi,
         'anchors': aligned_anchors_draft,
+        'no_anchor_reads' : no_anchor_reads,
         'unique_anchor_alignments' : unique_read_anchors,
         'double_anchor_reads' : double_anchor_reads,
         'reads_aligned': reads_aligned_draft
@@ -236,7 +236,7 @@ def create_draft_ref(double_anchor_reads, reads, anchors):
     return seq
 
 
-def align_reads_to_ref(reads, unique_read_anchors, anchor_alignments, seq_ref, anchors):
+def align_reads_to_ref(reads, no_anchor_reads, unique_read_anchors, double_anchor_reads, anchor_alignments, seq_ref, anchors):
     """Align reads to reference sequence starting from anchor positions.
 
     For each read with a unique anchor match, align the portion of the read after the anchor
@@ -245,7 +245,9 @@ def align_reads_to_ref(reads, unique_read_anchors, anchor_alignments, seq_ref, a
 
     Args:
         reads (dict): Dictionary containing read sequences and metadata
+        no_anchor_reads (dict): Dictionary containing read sequences and metadata
         unique_read_anchors (dict): Dictionary mapping read IDs to their unique anchor match
+        double_anchor_reads (dict): Dictionary mapping read IDs to their double anchor match
         anchor_alignments (dict): Dictionary containing anchor alignments for each read
         seq_ref (str): Reference sequence string
         anchors (dict): Dictionary containing anchor sequences and positions
@@ -273,6 +275,39 @@ def align_reads_to_ref(reads, unique_read_anchors, anchor_alignments, seq_ref, a
     H: Reverse read, no anchor
     """
 
+    # Setup allignment function
+    def align_read_to_ref(read, ref, mode):
+
+        query = reads[read]['seq_query']
+        aln = edlib.align(query, ref, task = "path", mode = mode)
+        aln_nice = edlib.getNiceAlignment(aln, query, ref)
+        ref_length = len(aln_nice['target_aligned'].replace('-', ''))
+
+        strand = reads[read]['strand']
+        query_qualities = reads[read]['query_qualities']
+        
+        return {
+            'strand' : strand,
+            'aln' : aln,
+            'seq' : query,
+            'ref_length' : ref_length,
+            'query_qualities' : query_qualities,
+        }
+
+    
+    reads_aligned = {}
+
+    # Align reads with no anchors (Infix Alignment)
+    for read in no_anchor_reads:
+        logging.debug("Aligning: %s : %s", read, no_anchor_reads[read])
+        reads_aligned[read] = align_read_to_ref(read, seq_ref, "HW")
+        
+        if reads[read]['strand'] == "+":
+            alignment_cases['G'] += 1
+        else:
+            alignment_cases['H'] += 1
+
+    # Align reads with unique anchors (PrefixAlignment)
     for read, anchor in unique_read_anchors.items():
         logging.debug("Aligning: %s : %s", read, anchor)
 
@@ -310,17 +345,12 @@ def align_reads_to_ref(reads, unique_read_anchors, anchor_alignments, seq_ref, a
             len(seq_from_anchor)
         )
 
-        aln = edlib.align(seq_from_anchor, ref_from_anchor, task = "path", mode = "SHW")
-        aln_nice = edlib.getNiceAlignment(aln, seq_from_anchor, ref_from_anchor)
-        ref_length = len(aln_nice['target_aligned'].replace('-', ''))
+        reads_aligned[read] = align_read_to_ref(read, seq_ref, "SHW")
 
-        reads_aligned[read] = {
-            'strand' : reads[read]['strand'],
-            'aln' : aln,
-            'seq' : seq_from_anchor,
-            'ref_length' : ref_length,
-            'query_qualities' : qual_from_anchor,
-        }
-    
+    for read in double_anchor_reads:
+        logging.debug("Aligning: %s : %s", read, double_anchor_reads[read])
+        
+        reads_aligned[read] = align_read_to_ref(read, seq_ref, "SHW")
+
     logging.debug("Alignment cases: %s", alignment_cases)   
     return reads_aligned
