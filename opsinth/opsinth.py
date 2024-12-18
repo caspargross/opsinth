@@ -21,6 +21,10 @@ class Opsinth:
                                  help='Increase verbosity level (e.g., -v, -vv, -vvv)')
         self.parser.add_argument('--no-igv', action='store_true', help='Do not start IGV.js viewer')
 
+
+
+
+
     def run(self):
         args = self.parser.parse_args()
         
@@ -34,7 +38,7 @@ class Opsinth:
 
         # Run analysis
         results_ref = run_ref_analysis(**dataset)
-        results = run_denovo_analysis(
+        results_denovo = run_denovo_analysis(
             results_ref.get('double_anchor_reads'),
             dataset.get('reads'),
             read_anchors(args.anchors)
@@ -52,9 +56,10 @@ class Opsinth:
         plot_alignment_quality(results_ref, (out_prefix + ".ref"))
         write_bam_file(results_ref, dataset.get('reads'), (out_prefix + ".ref"), args.bam, VERSION)
 
-        plot_coverage(results, (out_prefix + ".denovo"))
-        plot_alignment_quality(results, (out_prefix + ".denovo"))
-        write_bam_file(results, dataset.get('reads'), (out_prefix + ".denovo"), args.bam, VERSION)
+        write_fasta_file(results_denovo.get('seq_denovo'), results_denovo.get('roi'), (out_prefix + ".denovo"))
+        plot_coverage(results_denovo, (out_prefix + ".denovo"))
+        plot_alignment_quality(results_denovo, (out_prefix + ".denovo"))
+        write_bam_denovo(results_denovo, dataset.get('reads'), (out_prefix + ".denovo"), VERSION)
 
 
         if not args.no_igv:

@@ -41,7 +41,7 @@
             "request": "launch",
             "module": "opsinth",
             "console": "integratedTerminal",
-            "justMyCode": true,
+            "justMyCode": false,
             "args": [
                 "--bam", "/mnt/storage3b/projects/no_ngsd/ahgrosc1_colour_vision_collab/Sample_CV009/CV009.bam",
                 "--bed", "tests/input/opsin_region.bed",

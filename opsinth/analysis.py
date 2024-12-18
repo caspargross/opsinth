@@ -56,19 +56,27 @@ def run_denovo_analysis(double_anchor_reads, reads, anchors):
     (unique_read_anchors, double_anchor_reads) = characterize_read_anchors(reads, aligned_anchors_draft, reads_with_anchors_draft)
     reads_aligned_draft = align_reads(reads, unique_read_anchors, reads_with_anchors_draft, seq_draft, aligned_anchors_draft)
 
-    # Update ROI: max extend of seq_draft
-
-  
-    # todo (Update ROI?)
-    # todo (Update BAM Header?)
-
+    
+    # Update roi = max extend of anchors on draft seq
+    N_WINDOW = 100
+    min_pos = 1e8
+    max_pos = 0
+    for read in reads_with_anchors_draft:
+        for anchor in reads_with_anchors_draft[read]:
+            current_min = reads_with_anchors_draft[read][anchor]['locations'][0][0]
+            current_max = reads_with_anchors_draft[read][anchor]['locations'][0][1]
+            min_pos = min(min_pos, current_min)
+            max_pos = max(max_pos, current_max)
+    
+    roi = [["denovo_ref", min_pos - N_WINDOW, max_pos + N_WINDOW]]
+    
     return {
-        'seq_devono': seq_draft,
+        'seq_denovo': seq_draft,
         'roi': roi,
         'anchors': aligned_anchors_draft,
         'unique_anchor_alignments' : unique_read_anchors,
         'double_anchor_reads' : double_anchor_reads,
-        'reads_alignedo': reads_aligned_draft
+        'reads_aligned': reads_aligned_draft
     }
 
 def align_anchors(fasta_anchors, seq_ref):

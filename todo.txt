@@ -1,9 +1,13 @@
 - [ ] Define what to do with female samples (haploid X)
 - [ ] Integrate output from Paraphase
-- [ ] Generate new ref by overlapping reads
-- [ ] Polish consensus (racon)
-- [ ] Find overlapping longest reads
 - [ ] Indel Realignment / Merging in edlib alignments required
+- [ ] Polish consensus (racon)
+- [ ] Write correct seq name into BAM for denovo seq
+- [ ] Write fasta for denovo seq
+- [ ] Fix overhanging read ends for long reads. Maybe use softclips? Or cut to roi before alignment?
+- [ ] Fix coverage plot for denovo seq
+- [X] Generate new ref by overlapping reads
+- [X] Find overlapping longest reads
 - [X] Fix read orientation for WGS anchors
 - [X] Add @PG line to bamfile
 - [X] Create BAM index
