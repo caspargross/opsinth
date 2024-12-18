@@ -50,11 +50,26 @@ def run_ref_analysis(**kwargs):
 def run_denovo_analysis(double_anchor_reads, reads, anchors):
     
     logging.info("Start denovo analysis")
-    
-    draft_seq = create_draft_ref(double_anchor_reads, reads, anchors)
-    anchor_alignments_draft = find_anchors_on_reads(reads, align_anchors(reads, draft_seq), draft_seq)
+    seq_draft = create_draft_ref(double_anchor_reads, reads, anchors)
+    aligned_anchors_draft = align_anchors(anchors, seq_draft)
+    reads_with_anchors_draft = find_anchors_on_reads(reads, aligned_anchors_draft)
+    (unique_read_anchors, double_anchor_reads) = characterize_read_anchors(reads, aligned_anchors_draft, reads_with_anchors_draft)
+    reads_aligned_draft = align_reads(reads, unique_read_anchors, reads_with_anchors_draft, seq_draft, aligned_anchors_draft)
 
-    return {}
+    # Update ROI: max extend of seq_draft
+
+  
+    # todo (Update ROI?)
+    # todo (Update BAM Header?)
+
+    return {
+        'seq_devono': seq_draft,
+        'roi': roi,
+        'anchors': aligned_anchors_draft,
+        'unique_anchor_alignments' : unique_read_anchors,
+        'double_anchor_reads' : double_anchor_reads,
+        'reads_alignedo': reads_aligned_draft
+    }
 
 def align_anchors(fasta_anchors, seq_ref):
     

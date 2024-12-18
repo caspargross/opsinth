@@ -33,7 +33,12 @@ class Opsinth:
         dataset = read_files(args.bam, args.bed, args.ref, args.anchors)
 
         # Run analysis
-        results = run_ref_analysis(**dataset)
+        results_ref = run_ref_analysis(**dataset)
+        results = run_denovo_analysis(
+            results_ref.get('double_anchor_reads'),
+            dataset.get('reads'),
+            read_anchors(args.anchors)
+        )
         
         # Determine output directory and prefix
         output_dir = os.path.dirname(args.out)
@@ -43,9 +48,14 @@ class Opsinth:
         else:
             out_prefix = args.out
         
-        plot_coverage(results, out_prefix)
-        plot_alignment_quality(results, out_prefix)
-        write_bam_file(results, dataset.get('reads'), out_prefix, args.bam, VERSION)
+        plot_coverage(results_ref, (out_prefix + ".ref"))
+        plot_alignment_quality(results_ref, (out_prefix + ".ref"))
+        write_bam_file(results_ref, dataset.get('reads'), (out_prefix + ".ref"), args.bam, VERSION)
+
+        plot_coverage(results, (out_prefix + ".denovo"))
+        plot_alignment_quality(results, (out_prefix + ".denovo"))
+        write_bam_file(results, dataset.get('reads'), (out_prefix + ".denovo"), args.bam, VERSION)
+
 
         if not args.no_igv:
             # Convert ROI list to string format for IGV.js
