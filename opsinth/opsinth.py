@@ -33,7 +33,7 @@ class Opsinth:
         dataset = read_files(args.bam, args.bed, args.ref, args.anchors)
 
         # Run analysis
-        results = run_analysis(**dataset)
+        results = run_ref_analysis(**dataset)
         
         # Determine output directory and prefix
         output_dir = os.path.dirname(args.out)

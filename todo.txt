@@ -4,9 +4,9 @@
 - [ ] Polish consensus (racon)
 - [ ] Find overlapping longest reads
 - [ ] Indel Realignment / Merging in edlib alignments required
-- [ ] Fix read orientation for WGS anchors
+- [X] Fix read orientation for WGS anchors
 - [X] Add @PG line to bamfile
 - [X] Create BAM index
 - [X] Fix Alignment Quality plot
 - [X] Better output / logging to stdout
-- [X] Add IGV image generation / include IGV-Web 
+- [X] Add IGV image generation / include IGV-Web z
