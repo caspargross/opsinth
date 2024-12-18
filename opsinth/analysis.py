@@ -21,7 +21,7 @@ def read_files(bam_path, bed_path, ref_path, anchors_path):
         'bam': bam,
         'roi': roi,
         'seq_ref': seq_ref,
-        'anchors': align_anchors(anchors, seq_ref),
+        'anchors': align_anchors_to_ref(anchors, seq_ref),
         'reads': reads
     }
 
@@ -35,13 +35,14 @@ def run_ref_analysis(**kwargs):
     reads = kwargs.get('reads')
     seq_ref = kwargs.get('seq_ref')
     anchor_alignments = find_anchors_on_reads(reads, anchors)
-    (unique_read_anchors, double_anchor_reads) = characterize_read_anchors(reads, anchors, anchor_alignments)
-    reads_aligned = align_reads(reads, unique_read_anchors, anchor_alignments, seq_ref, anchors)
+    (no_anchor_reads, unique_read_anchors, double_anchor_reads) = characterize_read_anchors(reads, anchors, anchor_alignments)
+    reads_aligned = align_reads_to_ref(reads, unique_read_anchors, anchor_alignments, seq_ref, anchors)
 
     return{
         'bam': bam,
         'roi': roi,
         'anchors': anchors,
+        'no_anchor_reads' : no_anchor_reads,
         'unique_anchor_alignments' : unique_read_anchors,
         'double_anchor_reads' : double_anchor_reads,
         'reads_aligned': reads_aligned
@@ -51,10 +52,10 @@ def run_denovo_analysis(double_anchor_reads, reads, anchors):
     
     logging.info("Start denovo analysis")
     seq_draft = create_draft_ref(double_anchor_reads, reads, anchors)
-    aligned_anchors_draft = align_anchors(anchors, seq_draft)
+    aligned_anchors_draft = align_anchors_to_ref(anchors, seq_draft)
     reads_with_anchors_draft = find_anchors_on_reads(reads, aligned_anchors_draft)
-    (unique_read_anchors, double_anchor_reads) = characterize_read_anchors(reads, aligned_anchors_draft, reads_with_anchors_draft)
-    reads_aligned_draft = align_reads(reads, unique_read_anchors, reads_with_anchors_draft, seq_draft, aligned_anchors_draft)
+    (no_anchor_reads, unique_read_anchors, double_anchor_reads) = characterize_read_anchors(reads, aligned_anchors_draft, reads_with_anchors_draft)
+    reads_aligned_draft = align_reads_to_ref(reads, unique_read_anchors, reads_with_anchors_draft, seq_draft, aligned_anchors_draft)
 
     
     # Update roi = max extend of anchors on draft seq
@@ -79,7 +80,7 @@ def run_denovo_analysis(double_anchor_reads, reads, anchors):
         'reads_aligned': reads_aligned_draft
     }
 
-def align_anchors(fasta_anchors, seq_ref):
+def align_anchors_to_ref(fasta_anchors, seq_ref):
     
     """Sort anchor sequences by aligning them to the reference sequence.
 
@@ -139,28 +140,29 @@ def find_anchors_on_reads(reads, anchors):
     return anchor_alignments
 
 def characterize_read_anchors(reads, anchors, anchor_alignments):
-    """Return unique anchor matches for each read. Makes sure that read orientation is respected and
-      anchors are as close as possible to the read start. When multiple anchors are found, the anchor
-      with the lowest chromosome coordinate is selected.
-
-    For reads that match multiple anchor sequences, select the correct anchor based on strand:
-    - Forward read: Choose anchor with lowest coordinates 
-    - Reverse read: Choose anchor with highest coordinates
+    """Identify and return unique anchor matches for each read while respecting read orientation.
+    
+    This function processes the anchor alignments for each read and ensures that the selected anchors
+    are as close as possible to the start of the read. In cases where multiple anchors are found for a 
+    read, the function selects the anchor with the lowest chromosome coordinate for forward reads and 
+    the highest chromosome coordinate for reverse reads. Reads with anchors on both ends wirh a distance 
+    greater than MAX_DISTANCE_BETWEEN_ANCHORS are considered double anchors.
 
     Args:
-        reads (dict): Dictionary containing read sequences and metadata
-        anchors (dict): Dictionary containing anchor sequences and positions
-        anchor_alignments (dict): Dictionary containing anchor alignments for each read
+        reads (dict): A dictionary containing read sequences and their associated metadata.
+        anchors (dict): A dictionary containing anchor sequences and their positions on the reference genome.
+        anchor_alignments (dict): A dictionary containing the alignment results of anchors for each read.
 
     Returns:
-        dict: Dictionary mapping read IDs to their unique anchor match
+        dict: 
     """
     EDIT_DISTANCE_THRESHOLD= 5
     MIN_DISTANCE_BETWEEN_ANCHORS = 40000 # At least 1 OPN1LW gene length
 
     valid_read_anchors = {}
-    unique_read_anchors = {}
+    unique_anchor_reads = {}
     double_anchor_reads = {}
+    no_anchor_reads = {}
     
     for read in anchor_alignments:
         valid_read_anchors[read] = []
@@ -169,41 +171,52 @@ def characterize_read_anchors(reads, anchors, anchor_alignments):
                 valid_read_anchors[read].append(anchor)
 
     for read in valid_read_anchors:
-        # If read has multiple valid anchors, find the largest pair distance > MIN_DISTANCE_BETWEEN_ANCHORS
-        if len(valid_read_anchors[read]) > 1:
+        if len(valid_read_anchors[read]) == 0:
+            no_anchor_reads[read] = valid_read_anchors[read]
+            logging.debug("Read %s has no valid anchors", read)
+        elif len(valid_read_anchors[read]) == 1:
+            unique_anchor_reads[read] = valid_read_anchors[read][0]
+            logging.debug("Read %s has unique anchor: %s", read, unique_anchor_reads[read])
+        elif len(valid_read_anchors[read]) > 1:
             
             distance = 0
             anchor_pair = (None, None)
             lowest_anchor_index = 1e7  # Large number
             
+            # If read has multiple valid anchors, first check if largest between anchors distance > MIN_DISTANCE_BETWEEN_ANCHORS
             for anchor in valid_read_anchors[read]:
-                # Find anchor with lowest chromosome coordinate
-                if reads[read]['strand'] == "+":
-                    anchor_index = anchors['forward'].index(anchor)
-                else :
-                    anchor_index = anchors['reverse'].index(anchor)            
-                if anchor_index < lowest_anchor_index:
-                    unique_read_anchors[read] = anchor
-
+                
                 # Caclulate largest pair distance
                 for anchor2 in valid_read_anchors[read]:
                     new_distance =  abs(anchors['anchor_positions'][anchor]['start'] - anchors['anchor_positions'][anchor2]['start'])
                     if new_distance > distance:
                         distance = new_distance
                         anchor_pair = (anchor, anchor2)
+            
             if distance >= MIN_DISTANCE_BETWEEN_ANCHORS:
-                logging.debug("Read %s has multiple valid anchors: %s", read, valid_read_anchors[read])
-                double_anchor_reads[read] = anchor_pair
-        elif len(valid_read_anchors[read]) == 1:
-            unique_read_anchors[read] = valid_read_anchors[read][0]
-        else:
-            logging.debug("Read %s has no valid anchors", read)
+                logging.debug("Read %s has anchors on both ends: %s", read, valid_read_anchors[read])
+                double_anchor_reads[read] = anchor_pair    
 
+            # If no pair distance > MIN_DISTANCE_BETWEEN_ANCHORS, find anchor with lowest chromosome coordinate
+            else:
+                for anchor in valid_read_anchors[read]:
+                    # Find anchor with lowest chromosome coordinate
+                    if reads[read]['strand'] == "+":
+                        anchor_index = anchors['forward'].index(anchor)
+                    else :
+                        anchor_index = anchors['reverse'].index(anchor)            
+                    
+                    if anchor_index < lowest_anchor_index:
+                        unique_anchor_reads[read] = anchor
+                        logging.debug("Read %s has multiple valid anchors on one end, outmost possible anchor: %s", read, unique_anchor_reads[read])
+
+            
     logging.info("Total reads: %d", len(reads))
-    logging.info("Reads with valid anchors: %d", len(unique_read_anchors))
-    logging.info("Reads with double anchors: %d", len(double_anchor_reads))
-    # For now unique_read_anchors also contains the double anchors. Might need changing later.
-    return(unique_read_anchors, double_anchor_reads)
+    logging.info("Reads with no anchors: %d", len(no_anchor_reads))
+    logging.info("Reads with single valid anchors: %d", len(unique_anchor_reads))
+    logging.info("Reads with anchor on both ends: %d", len(double_anchor_reads))
+
+    return(no_anchor_reads, unique_anchor_reads, double_anchor_reads)
 
 def create_draft_ref(double_anchor_reads, reads, anchors):
     max_qscore = 0
@@ -223,7 +236,7 @@ def create_draft_ref(double_anchor_reads, reads, anchors):
     return seq
 
 
-def align_reads(reads, unique_read_anchors, anchor_alignments, seq_ref, anchors):
+def align_reads_to_ref(reads, unique_read_anchors, anchor_alignments, seq_ref, anchors):
     """Align reads to reference sequence starting from anchor positions.
 
     For each read with a unique anchor match, align the portion of the read after the anchor

@@ -17,7 +17,8 @@
                 "--ref", "/mnt/storage2/megSAP/data/genomes/GRCh38.fa",
                 "--anchors", "data/crispr_anchors.fasta",
                 "--out", "tests/out/crispr/a004",
-                "-vv"
+                "-vv",
+                "--no-igv"
             ]
         },
         {
@@ -32,7 +33,8 @@
                 "--bed", "tests/input/opsin_region.bed",
                 "--ref", "/mnt/storage2/megSAP/data/genomes/GRCh38.fa",
                 "--anchors", "data/wgs_anchors.fasta",
-                "--out", "tests/out/wgs/a004_wgs_coords"
+                "--out", "tests/out/wgs/a004_wgs_coords",
+                "--no-igv"
             ]
         },
         {

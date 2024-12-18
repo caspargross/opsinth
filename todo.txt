@@ -3,9 +3,10 @@
 - [ ] Indel Realignment / Merging in edlib alignments required
 - [ ] Polish consensus (racon)
 - [ ] Write correct seq name into BAM for denovo seq
-- [ ] Write fasta for denovo seq
 - [ ] Fix overhanging read ends for long reads. Maybe use softclips? Or cut to roi before alignment?
 - [ ] Fix coverage plot for denovo seq
+- [ ] What is up with seqs that completely fail to map?
+- [X] Write fasta for denovo seq
 - [X] Generate new ref by overlapping reads
 - [X] Find overlapping longest reads
 - [X] Fix read orientation for WGS anchors
