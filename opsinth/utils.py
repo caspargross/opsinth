@@ -45,7 +45,7 @@ def read_bam_file(bam_path, roi):
     b.close()
     return reads
 
-def reverse_cigar(cigarstring): 
+def reverse_cigar(cigarstring):
     cigar_instructions = []
     n = ""
 
@@ -55,18 +55,32 @@ def reverse_cigar(cigarstring):
         else:
             cigar_instructions.append(n +c)
             n = ""
-
     return "".join(cigar_instructions[::-1])
+
+
+def aln_length_cigar(cigarstring):
+    length = 0
+    num = ""
+    # These operations consume reference sequence
+    ref_ops = set(['M', '=', 'X', 'D', 'N'])
+    
+    for c in cigarstring:
+        if c.isnumeric():
+            num += c
+        else:
+            if c in ref_ops:
+                length += int(num)
+            num = ""
+            
+    return length
+
 
 def write_bam_file(results, reads, out_prefix, inbam, version):
     #nbam, outbam, outf, reads_aligned, anchors, roi, unique_anchor_alignments, reads
     unsortedbam = f"{out_prefix}.unsorted.bam"
     outbam = f"{out_prefix}.bam"
     reads_aligned = results['reads_aligned']
-    anchors = results['anchors']
     roi = results['roi']
-    ref_length = roi[0][2] - roi[0][1]
-    unique_anchor_alignments = results['unique_anchor_alignments']
 
     b = pysam.AlignmentFile(inbam, "rb")
     header = b.header.to_dict()
@@ -85,15 +99,11 @@ def write_bam_file(results, reads, out_prefix, inbam, version):
     with pysam.AlignmentFile(unsortedbam, "wb", header = header) as outf:
         for read in reads_aligned:
 
-            if reads_aligned[read]['strand'] == "+" :
-                ref_start =  roi[0][1] + reads_aligned[read]['aln']['locations'][0][1]
-                cigarstring = reads_aligned[read]['aln']['cigar']
-                query_sequence = reads_aligned[read]['seq']
-            else:
-                # This might be a source of bugs
-                ref_start = roi[0][2] - reads_aligned[read]['aln']['locations'][0][0] - reads_aligned[read]['ref_length']
-                cigarstring = reverse_cigar(reads_aligned[read]['aln']['cigar'])
-                query_sequence = reads_aligned[read]['seq'][::-1]
+            ref_start =  roi[0][1] + reads_aligned[read]['aln']['locations'][0][1]
+            cigarstring = reads_aligned[read]['aln']['cigar']
+            query_sequence = reads_aligned[read]['seq']
+            query_qualities = reads_aligned[read]['query_qualities']
+
             a = pysam.AlignedSegment()
             a.query_name = read
             a.query_sequence = query_sequence
@@ -102,7 +112,7 @@ def write_bam_file(results, reads, out_prefix, inbam, version):
             a.reference_start = ref_start
             a.mapping_quality = 30 #Could be adjusted by edit distance ranges
             a.cigarstring = cigarstring
-            a.query_qualities = reads_aligned[read]['query_qualities']
+            a.query_qualities = query_qualities
             a.tags = reads[read]['tags']
 
             outf.write(a)
@@ -138,9 +148,7 @@ def write_bam_denovo(results, reads, out_prefix, version):
     unsortedbam = f"{out_prefix}.unsorted.bam"
     outbam = f"{out_prefix}.bam"
     reads_aligned = results['reads_aligned']
-    anchors = results['anchors']
     roi = results['roi']
-    unique_anchor_alignments = results['unique_anchor_alignments']
 
     # Create a header with a @PG line
     header = {

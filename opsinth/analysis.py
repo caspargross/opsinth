@@ -21,7 +21,7 @@ def read_files(bam_path, bed_path, ref_path, anchors_path):
         'bam': bam,
         'roi': roi,
         'seq_ref': seq_ref,
-        'anchors': align_anchors_to_ref(anchors, seq_ref),
+        'anchors': anchors,
         'reads': reads
     }
 
@@ -34,37 +34,59 @@ def run_ref_analysis(**kwargs):
     anchors = kwargs.get('anchors')
     reads = kwargs.get('reads')
     seq_ref = kwargs.get('seq_ref')
-    anchor_alignments = find_anchors_on_reads(reads, anchors)
-    (no_anchor_reads, unique_read_anchors, double_anchor_reads) = characterize_read_anchors(reads, anchors, anchor_alignments)
-    reads_aligned = align_reads_to_ref(reads, no_anchor_reads, unique_read_anchors, double_anchor_reads, anchor_alignments, seq_ref, anchors)
+    
+    # Align anchors to reference sequence
+    anchors_on_ref = align_anchors_to_ref(anchors, seq_ref)
+
+    # Find anchors on reads
+    anchors_on_reads = find_anchors_on_reads(reads, anchors_on_ref)
+
+    # Characterize reads into no anchor, unique anchor and double anchor reads
+    (no_anchor_reads, unique_anchor_reads, double_anchor_reads) = characterize_read_anchors(reads, anchors_on_ref, anchors_on_reads)
+
+    # Align reads to reference seq
+    reads_aligned = align_reads_to_ref(reads, no_anchor_reads, unique_anchor_reads, double_anchor_reads, anchors_on_reads, seq_ref, anchors_on_ref)
 
     return{
+        'seq_ref': seq_ref,
         'bam': bam,
         'roi': roi,
         'anchors': anchors,
+        'anchors_on_ref': anchors_on_ref,
+        'anchors_on_reads': anchors_on_reads,
         'no_anchor_reads' : no_anchor_reads,
-        'unique_anchor_alignments' : unique_read_anchors,
+        'unique_anchor_reads' : unique_anchor_reads,
         'double_anchor_reads' : double_anchor_reads,
         'reads_aligned': reads_aligned
     }
 
-def run_denovo_analysis(double_anchor_reads, reads, anchors):
+def run_denovo_analysis(results_ref, dataset):
     
     logging.info("Start denovo analysis")
-    seq_draft = create_draft_ref(double_anchor_reads, reads, anchors)
-    aligned_anchors_draft = align_anchors_to_ref(anchors, seq_draft)
-    reads_with_anchors_draft = find_anchors_on_reads(reads, aligned_anchors_draft)
-    (no_anchor_reads, unique_read_anchors, double_anchor_reads) = characterize_read_anchors(reads, aligned_anchors_draft, reads_with_anchors_draft)
-    reads_aligned_draft = align_reads_to_ref(reads, no_anchor_reads, unique_read_anchors, double_anchor_reads, reads_with_anchors_draft, seq_draft, aligned_anchors_draft)
+
+    anchors = dataset['anchors']
+
+    # Create draft reference sequence
+    seq_draft = create_draft_ref(results_ref)
+
+    # Align anchors to draft reference sequence
+    anchors_on_ref = align_anchors_to_ref(anchors, seq_draft)
+
+    # Find anchors on reads
+    anchors_on_reads = find_anchors_on_reads(dataset['reads'], anchors_on_ref)
+
+    # Characterize reads into no anchor, unique anchor and double anchor reads
+    (no_anchor_reads, unique_anchor_reads, double_anchor_reads) = characterize_read_anchors(dataset['reads'], anchors_on_ref, anchors_on_reads)
+    reads_aligned = align_reads_to_ref(dataset['reads'], no_anchor_reads, unique_anchor_reads, double_anchor_reads, anchors_on_reads, seq_draft, anchors_on_ref)
 
     
     # Update roi = max extend of anchors on draft seq
     min_pos = 1e8
     max_pos = 0
-    for read in reads_with_anchors_draft:
-        for anchor in reads_with_anchors_draft[read]:
-            current_min = reads_with_anchors_draft[read][anchor]['locations'][0][0]
-            current_max = reads_with_anchors_draft[read][anchor]['locations'][0][1]
+    for read in anchors_on_reads:
+        for anchor in anchors_on_reads[read]:
+            current_min = anchors_on_reads[read][anchor]['locations'][0][0]
+            current_max = anchors_on_reads[read][anchor]['locations'][0][1]
             min_pos = min(min_pos, current_min)
             max_pos = max(max_pos, current_max)
     
@@ -73,11 +95,13 @@ def run_denovo_analysis(double_anchor_reads, reads, anchors):
     return {
         'seq_denovo': seq_draft,
         'roi': roi,
-        'anchors': aligned_anchors_draft,
+        'anchors': anchors,
+        'anchors_on_ref': anchors_on_ref,
+        'anchors_on_reads': anchors_on_reads,
         'no_anchor_reads' : no_anchor_reads,
-        'unique_anchor_alignments' : unique_read_anchors,
+        'unique_anchor_reads' : unique_anchor_reads,
         'double_anchor_reads' : double_anchor_reads,
-        'reads_aligned': reads_aligned_draft
+        'reads_aligned': reads_aligned
     }
 
 def align_anchors_to_ref(fasta_anchors, seq_ref):
@@ -139,7 +163,7 @@ def find_anchors_on_reads(reads, anchors):
 
     return anchor_alignments
 
-def characterize_read_anchors(reads, anchors, anchor_alignments):
+def characterize_read_anchors(reads, anchors_on_ref, anchors_on_reads):
     """Identify and return unique anchor matches for each read while respecting read orientation.
     
     This function processes the anchor alignments for each read and ensures that the selected anchors
@@ -164,10 +188,10 @@ def characterize_read_anchors(reads, anchors, anchor_alignments):
     double_anchor_reads = {}
     no_anchor_reads = {}
     
-    for read in anchor_alignments:
+    for read in anchors_on_reads:
         valid_read_anchors[read] = []
-        for anchor in anchor_alignments[read]:
-            if anchor_alignments[read][anchor]['editDistance'] < EDIT_DISTANCE_THRESHOLD:
+        for anchor in anchors_on_reads[read]:
+            if anchors_on_reads[read][anchor]['editDistance'] < EDIT_DISTANCE_THRESHOLD:
                 valid_read_anchors[read].append(anchor)
 
     for read in valid_read_anchors:
@@ -188,7 +212,7 @@ def characterize_read_anchors(reads, anchors, anchor_alignments):
                 
                 # Caclulate largest pair distance
                 for anchor2 in valid_read_anchors[read]:
-                    new_distance =  abs(anchors['anchor_positions'][anchor]['start'] - anchors['anchor_positions'][anchor2]['start'])
+                    new_distance =  abs(anchors_on_ref['anchor_positions'][anchor]['start'] - anchors_on_ref['anchor_positions'][anchor2]['start'])
                     if new_distance > distance:
                         distance = new_distance
                         anchor_pair = (anchor, anchor2)
@@ -202,9 +226,9 @@ def characterize_read_anchors(reads, anchors, anchor_alignments):
                 for anchor in valid_read_anchors[read]:
                     # Find anchor with lowest chromosome coordinate
                     if reads[read]['strand'] == "+":
-                        anchor_index = anchors['forward'].index(anchor)
+                        anchor_index = anchors_on_ref['forward'].index(anchor)
                     else :
-                        anchor_index = anchors['reverse'].index(anchor)            
+                        anchor_index = anchors_on_ref['reverse'].index(anchor)            
                     
                     if anchor_index < lowest_anchor_index:
                         unique_anchor_reads[read] = anchor
@@ -218,25 +242,46 @@ def characterize_read_anchors(reads, anchors, anchor_alignments):
 
     return(no_anchor_reads, unique_anchor_reads, double_anchor_reads)
 
-def create_draft_ref(double_anchor_reads, reads, anchors):
-    max_qscore = 0
-    for read in double_anchor_reads:
-        # Calculate mean without depending on numpy
-        mean_qscore = sum(reads[read]['query_qualities']) / len(reads[read]['query_qualities']) if reads[read]['query_qualities'] else 0
-        if (mean_qscore > max_qscore):
-            max_qscore = mean_qscore
-            max_read = read
-    logging.info("Max qscore: %d", max_qscore)
-    logging.info("Max read: %s", max_read)  
-    seq = reads[max_read]['seq_query']
+def create_draft_ref(results_ref):
+    # Different possible selection criteria for best spanning read
+    # 2. Max aligned read length between anchors
+    # 3. Highest scores of anchor hits  
 
-    # TODO 
-    # If no spannign reads are available, try to find overlap of reads
+    candidate_reads = {}
+    double_anchor_reads = results_ref['double_anchor_reads']
+    reads_aligned = results_ref['reads_aligned']
+    anchors_on_reads = results_ref['anchors_on_reads']
+    
+    for read in double_anchor_reads:
+
+        # Calculate anchor distances
+        anchor1 = double_anchor_reads[read][0]
+        anchor2 = double_anchor_reads[read][1]
+        lower_anchor = anchor1 if anchors_on_reads[read][anchor1]['locations'][0][0] < anchors_on_reads[read][anchor2]['locations'][0][0] else anchor2
+        upper_anchor = anchor2 if lower_anchor == anchor1 else anchor1
+        pos_lower_anchor = anchors_on_reads[read][lower_anchor]['locations'][0][0]
+        pos_upper_anchor = anchors_on_reads[read][upper_anchor]['locations'][0][1]
+        
+        candidate_reads[read] = {
+            'anchor_distance': pos_upper_anchor - pos_lower_anchor,
+            'lower_anchor': lower_anchor,
+            'upper_anchor': upper_anchor,
+            'pos_lower_anchor': pos_lower_anchor,
+            'pos_upper_anchor': pos_upper_anchor,
+            'edit_distance': anchors_on_reads[read][lower_anchor]['editDistance'] + anchors_on_reads[read][upper_anchor]['editDistance']
+        }
+
+    # Select best candidate read by minimum edit distance of both anchors, then by anchor distance
+    best_read = min(candidate_reads, key=lambda r: (candidate_reads[r]['edit_distance'], candidate_reads[r]['anchor_distance']))
+
+    logging.info("Best read: %s, edit distance: %d, anchor distance: %d", best_read, candidate_reads[best_read]['edit_distance'], candidate_reads[best_read]['anchor_distance'])
+
+    seq = reads_aligned[best_read]['seq'][candidate_reads[best_read]['pos_lower_anchor']:candidate_reads[best_read]['pos_upper_anchor']]
 
     return seq
 
 
-def align_reads_to_ref(reads, no_anchor_reads, unique_read_anchors, double_anchor_reads, anchor_alignments, seq_ref, anchors):
+def align_reads_to_ref(reads, no_anchor_reads, unique_read_anchors, double_anchor_reads, anchor_alignments, seq_ref, anchors_on_ref):
     """Align reads to reference sequence starting from anchor positions.
 
     For each read with a unique anchor match, align the portion of the read after the anchor
@@ -308,29 +353,29 @@ def align_reads_to_ref(reads, no_anchor_reads, unique_read_anchors, double_ancho
     for read, anchor in unique_read_anchors.items():
         logging.debug("Aligning: %s : %s", read, anchor)
 
-        is_lower_anchor = anchors['forward'].index(anchor) < anchors['reverse'].index(anchor)
+        is_lower_anchor = anchors_on_ref['forward'].index(anchor) < anchors_on_ref['reverse'].index(anchor)
 
         if reads[read]['strand'] == "+" : # + Forward read  
             if is_lower_anchor: # Case A
                 seq_from_anchor = reads[read]['seq_query'][anchor_alignments[read][anchor]['locations'][0][0]:]
                 qual_from_anchor = reads[read]['query_qualities'][anchor_alignments[read][anchor]['locations'][0][0]:]
-                ref_from_anchor = seq_ref[anchors['anchor_positions'][anchor]['start']:]    
+                ref_from_anchor = seq_ref[anchors_on_ref['anchor_positions'][anchor]['start']:]    
                 alignment_cases['A'] += 1
             else: # Case B
                 seq_from_anchor = reads[read]['seq_query'][:anchor_alignments[read][anchor]['locations'][0][1]][::-1]
                 qual_from_anchor = reads[read]['query_qualities'][:anchor_alignments[read][anchor]['locations'][0][1]][::-1]
-                ref_from_anchor = seq_ref[:anchors['anchor_positions'][anchor]['end']][::-1]
+                ref_from_anchor = seq_ref[:anchors_on_ref['anchor_positions'][anchor]['end']][::-1]
                 alignment_cases['B'] += 1
         elif reads[read]['strand'] == "-": # - Reverse read
             if is_lower_anchor: # Case C
                 seq_from_anchor = reads[read]['seq_query'][anchor_alignments[read][anchor]['locations'][0][0]:]
                 qual_from_anchor = reads[read]['query_qualities'][anchor_alignments[read][anchor]['locations'][0][0]:]
-                ref_from_anchor = seq_ref[anchors['anchor_positions'][anchor]['start']]
+                ref_from_anchor = seq_ref[anchors_on_ref['anchor_positions'][anchor]['start']]
                 alignment_cases['C'] += 1
             else: # Case D
                 seq_from_anchor = reads[read]['seq_query'][:anchor_alignments[read][anchor]['locations'][0][1]][::-1]
                 qual_from_anchor = reads[read]['query_qualities'][:anchor_alignments[read][anchor]['locations'][0][1]][::-1]
-                ref_from_anchor = seq_ref[:anchors['anchor_positions'][anchor]['end']][::-1]
+                ref_from_anchor = seq_ref[:anchors_on_ref['anchor_positions'][anchor]['end']][::-1]
                 alignment_cases['D'] += 1
 
         
@@ -344,12 +389,32 @@ def align_reads_to_ref(reads, no_anchor_reads, unique_read_anchors, double_ancho
         reads_aligned[read]['query_qualities'] = qual_from_anchor
         reads_aligned[read]['strand'] = reads[read]['strand']
 
-    # Align reads with double anchors (Global Alignment)
-    for read in double_anchor_reads:
-        logging.debug("Aligning: %s : %s", read, double_anchor_reads[read])
+        # Reverse high anchor reads
+        if not is_lower_anchor:
+            reads_aligned[read]['seq'] = seq_from_anchor[::-1]
+            reads_aligned[read]['query_qualities'] = qual_from_anchor[::-1]
+
+            high_anchor_end = anchors_on_ref['anchor_positions'][anchor]['end']
+            new_aln_start = high_anchor_end - reads_aligned[read]['ref_length']
+            rev_cigar = reverse_cigar(reads_aligned[read]['aln']['cigar'])
+
+            aln_original = reads_aligned[read]['aln'].copy()
+            reads_aligned[read]['aln'] = {
+                'editDistance': aln_original['editDistance'],
+                'alphabetLength': aln_original['alphabetLength'],
+                'locations': [[new_aln_start, high_anchor_end]],
+                'cigar': rev_cigar,
+            }
+
+
         
-        (anchor1, anchor2) = double_anchor_reads[read]
-        # Find low and high anchor
+    # Align reads with double anchors (Global Alignment)
+    # Always start alignment from lower anchor
+    
+    for read, (anchor1, anchor2) in double_anchor_reads.items() :
+        logging.debug("Aligning: %s : %s", read, double_anchor_reads[read])
+
+        # Find low and high anchor on this read
         if anchor_alignments[read][anchor1]['locations'][0][0] < anchor_alignments[read][anchor2]['locations'][0][1]:
             anchor_low = anchor_alignments[read][anchor1]['locations'][0][0]
             anchor_high = anchor_alignments[read][anchor2]['locations'][0][1]

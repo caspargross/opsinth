@@ -4,9 +4,9 @@
 - [ ] Polish consensus (racon)
 - [ ] Write correct seq name into BAM for denovo seq
 - [ ] Fix overhanging read ends for long reads. Maybe use softclips? Or cut to roi before alignment?
-- [ ] Fix coverage plot for denovo seq
-- [ ] What is up with seqs that completely fail to map?
-- [ ] Multiple alignments for reads without anchors
+- [X] Fix coverage plot for denovo seq
+- [X] What is up with seqs that completely fail to map?: Else with "continue 
+- [X] Multiple alignments for reads without anchors: Always use first
 - [X] Write fasta for denovo seq
 - [X] Generate new ref by overlapping reads
 - [X] Find overlapping longest reads
@@ -15,4 +15,4 @@
 - [X] Create BAM index
 - [X] Fix Alignment Quality plot
 - [X] Better output / logging to stdout
-- [X] Add IGV image generation / include IGV-Web z
+- [X] Add IGV image generation / include IGV-Web
