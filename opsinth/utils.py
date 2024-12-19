@@ -238,5 +238,8 @@ def configure_logging(verbosity=0):
         level=level,
         format='%(asctime)s - %(levelname)s - %(message)s'
     )
+
+    # Disable matplotlib font logging
+    logging.getLogger('matplotlib.font_manager').disabled = True
     
     logging.debug(f"Logging level set to: {logging.getLevelName(level)}")
