@@ -124,17 +124,18 @@ def write_bam(results, out_prefix, version, template_bam = False):
             # Recreate old coordinates for genome references
             if template_bam:
                 a.reference_id  = results['reads'][read]['reference_id']
-                a.reference_start = roi[0][1] + reads_aligned[read]['aln']['locations'][0][0]
+                #a.reference_start = roi[0][1] + reads_aligned[read]['aln']['locations'][0][0]
                 a.tags = results['reads'][read]['tags'] #TODO: Add edit distance, remove obsolete tags
 
             # Use new coordinates for denovo reference
             else:
                 a.reference_id = 0
-                a.reference_start =  reads_aligned[read]['aln']['locations'][0][1]
+                #a.reference_start =  reads_aligned[read]['aln']['locations'][0][1]
                 a.tags = results['reads'][read]['tags'] #TODO: Add edit distance, remove obsolete tags
 
             # This is always the same
             a.query_name = read
+            a.reference_start = roi[0][1] + reads_aligned[read]['reference_start']
             a.query_sequence = reads_aligned[read]['seq']
             a.flag = 0 if reads_aligned[read]['strand'] == "+" else 16
             a.mapping_quality = 30 #Could be adjusted by edit distance ranges

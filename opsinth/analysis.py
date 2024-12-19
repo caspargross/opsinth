@@ -285,7 +285,7 @@ def create_draft_ref(results_ref):
     return seq
 
 
-def align_reads_to_ref(reads, no_anchor_reads, unique_read_anchors, double_anchor_reads, anchor_alignments, seq_ref, anchors_on_ref):
+def align_reads_to_ref(reads, no_anchor_reads, unique_read_anchors, double_anchor_reads, anchors_on_reads, seq_ref, anchors_on_ref):
     """Align reads to reference sequence starting from anchor positions.
 
     For each read with a unique anchor match, align the portion of the read after the anchor
@@ -335,6 +335,7 @@ def align_reads_to_ref(reads, no_anchor_reads, unique_read_anchors, double_ancho
             'aln' : aln,
             'seq' : query,
             'ref_length' : ref_length,
+            'reference_start': aln['locations'][0][0]
         }
 
     
@@ -358,28 +359,34 @@ def align_reads_to_ref(reads, no_anchor_reads, unique_read_anchors, double_ancho
         logging.debug("Aligning: %s : %s", read, anchor)
 
         is_lower_anchor = anchors_on_ref['forward'].index(anchor) < anchors_on_ref['reverse'].index(anchor)
+        
+        anchor_start_on_ref = anchors_on_ref['anchor_positions'][anchor]['start']
+        anchor_end_on_ref = anchors_on_ref['anchor_positions'][anchor]['end']
+        
+        anchor_start_on_read = anchors_on_reads[read][anchor]['locations'][0][0]
+        anchor_end_on_read = anchors_on_reads[read][anchor]['locations'][0][1]
 
         if reads[read]['strand'] == "+" : # + Forward read  
             if is_lower_anchor: # Case A
-                seq_from_anchor = reads[read]['seq_query'][anchor_alignments[read][anchor]['locations'][0][0]:]
-                qual_from_anchor = reads[read]['query_qualities'][anchor_alignments[read][anchor]['locations'][0][0]:]
-                ref_from_anchor = seq_ref[anchors_on_ref['anchor_positions'][anchor]['start']:]    
+                seq_from_anchor = reads[read]['seq_query'][anchor_start_on_read:]
+                qual_from_anchor = reads[read]['query_qualities'][anchor_start_on_read:]
+                ref_from_anchor = seq_ref[anchor_start_on_ref:]    
                 alignment_cases['A'] += 1
             else: # Case B
-                seq_from_anchor = reads[read]['seq_query'][:anchor_alignments[read][anchor]['locations'][0][1]][::-1]
-                qual_from_anchor = reads[read]['query_qualities'][:anchor_alignments[read][anchor]['locations'][0][1]][::-1]
-                ref_from_anchor = seq_ref[:anchors_on_ref['anchor_positions'][anchor]['end']][::-1]
+                seq_from_anchor = reads[read]['seq_query'][:anchor_end_on_read][::-1]
+                qual_from_anchor = reads[read]['query_qualities'][:anchor_end_on_read][::-1]
+                ref_from_anchor = seq_ref[:anchor_end_on_ref][::-1]
                 alignment_cases['B'] += 1
         elif reads[read]['strand'] == "-": # - Reverse read
             if is_lower_anchor: # Case C
-                seq_from_anchor = reads[read]['seq_query'][anchor_alignments[read][anchor]['locations'][0][0]:]
-                qual_from_anchor = reads[read]['query_qualities'][anchor_alignments[read][anchor]['locations'][0][0]:]
-                ref_from_anchor = seq_ref[anchors_on_ref['anchor_positions'][anchor]['start']]
+                seq_from_anchor = reads[read]['seq_query'][anchor_start_on_read:]
+                qual_from_anchor = reads[read]['query_qualities'][anchor_start_on_read:]
+                ref_from_anchor = seq_ref[anchor_start_on_ref:]
                 alignment_cases['C'] += 1
             else: # Case D
-                seq_from_anchor = reads[read]['seq_query'][:anchor_alignments[read][anchor]['locations'][0][1]][::-1]
-                qual_from_anchor = reads[read]['query_qualities'][:anchor_alignments[read][anchor]['locations'][0][1]][::-1]
-                ref_from_anchor = seq_ref[:anchors_on_ref['anchor_positions'][anchor]['end']][::-1]
+                seq_from_anchor = reads[read]['seq_query'][:anchor_end_on_read][::-1]
+                qual_from_anchor = reads[read]['query_qualities'][:anchor_end_on_read][::-1]
+                ref_from_anchor = seq_ref[:anchor_end_on_ref][::-1]
                 alignment_cases['D'] += 1
 
         
@@ -390,26 +397,28 @@ def align_reads_to_ref(reads, no_anchor_reads, unique_read_anchors, double_ancho
         )
 
         reads_aligned[read] = align_with_edlib(seq_from_anchor, ref_from_anchor, "SHW")
-        reads_aligned[read]['query_qualities'] = qual_from_anchor
         reads_aligned[read]['strand'] = reads[read]['strand']
+        
+        if is_lower_anchor:
+            reads_aligned[read]['query_qualities'] = qual_from_anchor
+            reads_aligned[read]['reference_start'] = anchor_start_on_ref
 
         # Reverse high anchor reads
-        if not is_lower_anchor:
+        else:
             reads_aligned[read]['seq'] = seq_from_anchor[::-1]
             reads_aligned[read]['query_qualities'] = qual_from_anchor[::-1]
 
-            high_anchor_end = anchors_on_ref['anchor_positions'][anchor]['end']
-            new_aln_start = high_anchor_end - reads_aligned[read]['ref_length']
+            new_aln_start = anchor_end_on_ref - reads_aligned[read]['ref_length']
             rev_cigar = reverse_cigar(reads_aligned[read]['aln']['cigar'])
 
             aln_original = reads_aligned[read]['aln'].copy()
             reads_aligned[read]['aln'] = {
                 'editDistance': aln_original['editDistance'],
                 'alphabetLength': aln_original['alphabetLength'],
-                'locations': [[new_aln_start, high_anchor_end]],
+                'locations': [[new_aln_start, anchor_end_on_ref]],
                 'cigar': rev_cigar,
             }
-
+            reads_aligned[read]['reference_start'] = new_aln_start
 
         
     # Align reads with double anchors (Global Alignment)
@@ -437,6 +446,8 @@ def align_reads_to_ref(reads, no_anchor_reads, unique_read_anchors, double_ancho
         reads_aligned[read] = align_with_edlib(seq, ref, "NW")
         reads_aligned[read]['query_qualities'] = qual
         reads_aligned[read]['strand'] = reads[read]['strand']
+        reads_aligned[read]['reference_start'] = anchor_low
+        
         logging.debug(
             "Full read length: %d, Read length trimmed after anchor: %d",
             len(reads[read]['seq_query']),
