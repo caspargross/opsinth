@@ -61,7 +61,7 @@ def plot_alignment_quality(results, output_prefix):
         if read in results['no_anchor_reads']:
             anchor = 'no_anchor'
         elif read in results['double_anchor_reads']:
-            anchor = 'both_anchors'
+            anchor = 'both_anchors' 
         else:
             anchor = results['unique_anchor_reads'][read]
         colors.append(anchor_color_map.get(anchor, 'gray'))

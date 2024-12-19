@@ -57,14 +57,16 @@ def run_ref_analysis(**kwargs):
         'no_anchor_reads' : no_anchor_reads,
         'unique_anchor_reads' : unique_anchor_reads,
         'double_anchor_reads' : double_anchor_reads,
-        'reads_aligned': reads_aligned
+        'reads_aligned': reads_aligned,
+        'reads': reads
     }
 
 def run_denovo_analysis(results_ref, dataset):
     
     logging.info("Start denovo analysis")
 
-    anchors = dataset['anchors']
+    anchors = results_ref['anchors']
+    reads = results_ref['reads']
 
     # Create draft reference sequence
     seq_draft = create_draft_ref(results_ref)
@@ -73,22 +75,22 @@ def run_denovo_analysis(results_ref, dataset):
     anchors_on_ref = align_anchors_to_ref(anchors, seq_draft)
 
     # Find anchors on reads
-    anchors_on_reads = find_anchors_on_reads(dataset['reads'], anchors_on_ref)
+    anchors_on_reads = find_anchors_on_reads(reads, anchors_on_ref) # Redundant, was calculated in ref analysis already
 
     # Characterize reads into no anchor, unique anchor and double anchor reads
-    (no_anchor_reads, unique_anchor_reads, double_anchor_reads) = characterize_read_anchors(dataset['reads'], anchors_on_ref, anchors_on_reads)
-    reads_aligned = align_reads_to_ref(dataset['reads'], no_anchor_reads, unique_anchor_reads, double_anchor_reads, anchors_on_reads, seq_draft, anchors_on_ref)
+    (no_anchor_reads, unique_anchor_reads, double_anchor_reads) = characterize_read_anchors(reads, anchors_on_ref, anchors_on_reads) # Redundant, was calculated in ref analysis already 
+    
+    reads_aligned = align_reads_to_ref(reads, no_anchor_reads, unique_anchor_reads, double_anchor_reads, anchors_on_reads, seq_draft, anchors_on_ref)
 
     
     # Update roi = max extend of anchors on draft seq
     min_pos = 1e8
     max_pos = 0
-    for read in anchors_on_reads:
-        for anchor in anchors_on_reads[read]:
-            current_min = anchors_on_reads[read][anchor]['locations'][0][0]
-            current_max = anchors_on_reads[read][anchor]['locations'][0][1]
-            min_pos = min(min_pos, current_min)
-            max_pos = max(max_pos, current_max)
+    for anchor in anchors_on_ref['anchor_positions']:
+        current_min = anchors_on_ref['anchor_positions'][anchor]['start']
+        current_max = anchors_on_ref['anchor_positions'][anchor]['end']
+        min_pos = min(min_pos, current_min)
+        max_pos = max(max_pos, current_max)
     
     roi = [["denovo_ref", min_pos, max_pos]]
     
@@ -101,6 +103,7 @@ def run_denovo_analysis(results_ref, dataset):
         'no_anchor_reads' : no_anchor_reads,
         'unique_anchor_reads' : unique_anchor_reads,
         'double_anchor_reads' : double_anchor_reads,
+        'reads': reads,
         'reads_aligned': reads_aligned
     }
 
@@ -249,6 +252,7 @@ def create_draft_ref(results_ref):
 
     candidate_reads = {}
     double_anchor_reads = results_ref['double_anchor_reads']
+    reads = results_ref['reads']
     reads_aligned = results_ref['reads_aligned']
     anchors_on_reads = results_ref['anchors_on_reads']
     
@@ -276,7 +280,7 @@ def create_draft_ref(results_ref):
 
     logging.info("Best read: %s, edit distance: %d, anchor distance: %d", best_read, candidate_reads[best_read]['edit_distance'], candidate_reads[best_read]['anchor_distance'])
 
-    seq = reads_aligned[best_read]['seq'][candidate_reads[best_read]['pos_lower_anchor']:candidate_reads[best_read]['pos_upper_anchor']]
+    seq = reads[best_read]['seq_query'][candidate_reads[best_read]['pos_lower_anchor']:candidate_reads[best_read]['pos_upper_anchor']]
 
     return seq
 
@@ -321,7 +325,7 @@ def align_reads_to_ref(reads, no_anchor_reads, unique_read_anchors, double_ancho
     """
 
     # Setup alignment function
-    def align_read_to_ref(query, ref, mode):
+    def align_with_edlib(query, ref, mode):
 
         aln = edlib.align(query, ref, task = "path", mode = mode)
         aln_nice = edlib.getNiceAlignment(aln, query, ref)
@@ -339,7 +343,7 @@ def align_reads_to_ref(reads, no_anchor_reads, unique_read_anchors, double_ancho
     # Align reads with no anchors (Infix Alignment)
     for read in no_anchor_reads:
         logging.debug("Aligning: %s : %s", read, no_anchor_reads[read])
-        reads_aligned[read] = align_read_to_ref(reads[read]['seq_query'], seq_ref, "HW")
+        reads_aligned[read] = align_with_edlib(reads[read]['seq_query'], seq_ref, "HW")
         
         reads_aligned[read]['query_qualities'] = reads[read]['query_qualities']
         reads_aligned[read]['strand'] = reads[read]['strand']
@@ -385,7 +389,7 @@ def align_reads_to_ref(reads, no_anchor_reads, unique_read_anchors, double_ancho
             len(seq_from_anchor)
         )
 
-        reads_aligned[read] = align_read_to_ref(seq_from_anchor, ref_from_anchor, "SHW")
+        reads_aligned[read] = align_with_edlib(seq_from_anchor, ref_from_anchor, "SHW")
         reads_aligned[read]['query_qualities'] = qual_from_anchor
         reads_aligned[read]['strand'] = reads[read]['strand']
 
@@ -415,25 +419,22 @@ def align_reads_to_ref(reads, no_anchor_reads, unique_read_anchors, double_ancho
         logging.debug("Aligning: %s : %s", read, double_anchor_reads[read])
 
         # Find low and high anchor on this read
-        if anchor_alignments[read][anchor1]['locations'][0][0] < anchor_alignments[read][anchor2]['locations'][0][1]:
-            anchor_low = anchor_alignments[read][anchor1]['locations'][0][0]
-            anchor_high = anchor_alignments[read][anchor2]['locations'][0][1]
+        if anchors_on_ref['anchor_positions'][anchor1]['start'] < anchors_on_ref['anchor_positions'][anchor2]['start']:
+            anchor_low = anchors_on_ref['anchor_positions'][anchor1]['start']
+            anchor_high = anchors_on_ref['anchor_positions'][anchor2]['start']
         else:
-            anchor_low = anchor_alignments[read][anchor2]['locations'][0][0]
-            anchor_high = anchor_alignments[read][anchor1]['locations'][0][1]
-
+            anchor_low = anchors_on_ref['anchor_positions'][anchor2]['start']
+            anchor_high = anchors_on_ref['anchor_positions'][anchor1]['start']
+        seq = reads[read]['seq_query'][anchor_low:anchor_high]
+        qual = reads[read]['query_qualities'][anchor_low:anchor_high]
+        ref = seq_ref[anchor_low:anchor_high]
+        
         if reads[read]['strand'] == "+" :   # + Forward read
-            seq = reads[read]['seq_query'][anchor_low:anchor_high]
-            qual = reads[read]['query_qualities'][anchor_low:anchor_high]
-            ref = seq_ref[anchor_low:anchor_high]
             alignment_cases['E'] += 1
         else:                               # - Reverse read
-            seq = reads[read]['seq_query'][anchor_low:anchor_high][::-1]
-            qual = reads[read]['query_qualities'][anchor_low:anchor_high][::-1]
-            ref = seq_ref[anchor_low:anchor_high][::-1]
             alignment_cases['F'] += 1
 
-        reads_aligned[read] = align_read_to_ref(seq, ref, "NW")
+        reads_aligned[read] = align_with_edlib(seq, ref, "NW")
         reads_aligned[read]['query_qualities'] = qual
         reads_aligned[read]['strand'] = reads[read]['strand']
         logging.debug(
