@@ -75,124 +75,71 @@ def aln_length_cigar(cigarstring):
     return length
 
 
-def write_bam_file(results, reads, out_prefix, inbam, version):
-    #nbam, outbam, outf, reads_aligned, anchors, roi, unique_anchor_alignments, reads
+def write_bam(results, out_prefix, version, template_bam = False):
+
     unsortedbam = f"{out_prefix}.unsorted.bam"
     outbam = f"{out_prefix}.bam"
     reads_aligned = results['reads_aligned']
     roi = results['roi']
 
-    b = pysam.AlignmentFile(inbam, "rb")
-    header = b.header.to_dict()
-    
-    # Create a header with a @PG line
+    # Define PG Line
     pg_line = {
             'ID': 'opsinth',  # Program ID
             'PN': 'opsinth',  # Program name
             'VN': version,             # Program version
             'CL': ' '.join(sys.argv)  # Command line (you can customize this)
     }
-    
-    header['PG'].append(pg_line)
-    logging.debug("header['PG']: %s", header['PG'])
 
+    # Take existing header from template bam
+    # Create new header for denovo reference
+    if template_bam:
+        b = pysam.AlignmentFile(template_bam, "rb")
+        header = b.header.to_dict()
+        
+        header['PG'].append(pg_line)
+        logging.debug("keep header from template bam and add ['PG'] line: %s", header['PG'])
+    
+    else:
+        # Create a new header for denovo reference
+        header = {
+            'HD': {
+                'VN': str(version),
+            },
+            'SQ': [
+                {
+                    'SN': str(roi[0][0]),
+                    'LN': roi[0][2] - roi[0][1]
+                }
+            ],
+            'PG': [pg_line]
+        }
+    
+
+    
     with pysam.AlignmentFile(unsortedbam, "wb", header = header) as outf:
         for read in reads_aligned:
-
-            ref_start =  roi[0][1] + reads_aligned[read]['aln']['locations'][0][1]
-            cigarstring = reads_aligned[read]['aln']['cigar']
-            query_sequence = reads_aligned[read]['seq']
-            query_qualities = reads_aligned[read]['query_qualities']
-
+            
             a = pysam.AlignedSegment()
-            a.query_name = read
-            a.query_sequence = query_sequence
-            a.flag = 0 if reads_aligned[read]['strand'] == "+" else 16
-            a.reference_id = reads[read]['reference_id']
-            a.reference_start = ref_start
-            a.mapping_quality = 30 #Could be adjusted by edit distance ranges
-            a.cigarstring = cigarstring
-            a.query_qualities = query_qualities
-            a.tags = reads[read]['tags']
 
-            outf.write(a)
-    
-    # Sort the temporary BAM file and write to the final output BAM file
-    sort_successful = False
-    index_successful = False
+            # Recreate old coordinates for genome references
+            if template_bam:
+                a.reference_id  = results['reads'][read]['reference_id']
+                a.reference_start = roi[0][1] + reads_aligned[read]['aln']['locations'][0][0]
+                a.tags = results['reads'][read]['tags'] #TODO: Add edit distance, remove obsolete tags
 
-    try:
-        pysam.sort("-o", outbam, unsortedbam, add_pg=True)
-        sort_successful = True
-    except Exception as e:
-        logging.error(f"Error sorting BAM file: {e}")
-
-    # Index the sorted BAM file
-    try:
-        pysam.index(outbam)
-        index_successful = True
-    except Exception as e:
-        logging.error(f"Error indexing BAM file: {e}")
-
-    # Remove the temporary BAM file only if both operations were successful
-    if sort_successful and index_successful:
-        import os
-        os.remove(unsortedbam)
-        logging.info("Sorting and Indexing successfull, removed temp output")
-
-
-    b.close()
-
-def write_bam_denovo(results, reads, out_prefix, version):
-    #nbam, outbam, outf, reads_aligned, anchors, roi, unique_anchor_alignments, reads
-    unsortedbam = f"{out_prefix}.unsorted.bam"
-    outbam = f"{out_prefix}.bam"
-    reads_aligned = results['reads_aligned']
-    roi = results['roi']
-
-    # Create a header with a @PG line
-    header = {
-        'HD': {
-            'VN': str(version),
-        },
-        'SQ': [
-            {
-                'SN': str(roi[0][0]),
-                'LN': roi[0][2] - roi[0][1]
-            }
-        ],
-        'PG': [
-            {
-                'ID': 'opsinth',  # Program ID
-                'PN': 'opsinth',  # Program name
-                'VN': str(version),             # Program version
-                'CL': ' '.join(sys.argv)  # Command line (you can customize this)
-            }
-        ]
-    }
-    
-    with pysam.AlignmentFile(unsortedbam, "wb", header = header) as outf:
-        for read in reads_aligned:
-
-            if reads_aligned[read]['strand'] == "+" :
-                ref_start =  roi[0][1] + reads_aligned[read]['aln']['locations'][0][1]
-                cigarstring = reads_aligned[read]['aln']['cigar']
-                query_sequence = reads_aligned[read]['seq']
+            # Use new coordinates for denovo reference
             else:
-                # This might be a source of bugs
-                ref_start = roi[0][2] - reads_aligned[read]['aln']['locations'][0][0] - reads_aligned[read]['ref_length']
-                cigarstring = reverse_cigar(reads_aligned[read]['aln']['cigar'])
-                query_sequence = reads_aligned[read]['seq'][::-1]
-            a = pysam.AlignedSegment()
+                a.reference_id = 0
+                a.reference_start =  reads_aligned[read]['aln']['locations'][0][1]
+                a.tags = results['reads'][read]['tags'] #TODO: Add edit distance, remove obsolete tags
+
+            # This is always the same
             a.query_name = read
-            a.query_sequence = query_sequence
+            a.query_sequence = reads_aligned[read]['seq']
             a.flag = 0 if reads_aligned[read]['strand'] == "+" else 16
-            a.reference_id = 0
-            a.reference_start = ref_start
             a.mapping_quality = 30 #Could be adjusted by edit distance ranges
-            a.cigarstring = cigarstring
+            a.cigarstring = reads_aligned[read]['aln']['cigar']
             a.query_qualities = reads_aligned[read]['query_qualities']
-            a.tags = reads[read]['tags']
 
             outf.write(a)
     

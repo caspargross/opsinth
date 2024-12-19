@@ -22,9 +22,6 @@ class Opsinth:
         self.parser.add_argument('--no-igv', action='store_true', help='Do not start IGV.js viewer')
 
 
-
-
-
     def run(self):
         args = self.parser.parse_args()
         
@@ -48,14 +45,16 @@ class Opsinth:
         else:
             out_prefix = args.out
         
+        # Plot and write reference results
         plot_coverage(results_ref, (out_prefix + ".ref"))
         plot_alignment_quality(results_ref, (out_prefix + ".ref"))
-        write_bam_file(results_ref, dataset.get('reads'), (out_prefix + ".ref"), args.bam, VERSION)
+        write_bam(results_ref,(out_prefix + ".ref"), VERSION, args.bam)
 
+        # Plot and write denovo results
         write_fasta_file(results_denovo.get('seq_denovo'), results_denovo.get('roi'), (out_prefix + ".denovo"))
         plot_coverage(results_denovo, (out_prefix + ".denovo"))
         plot_alignment_quality(results_denovo, (out_prefix + ".denovo"))
-        write_bam_denovo(results_denovo, dataset.get('reads'), (out_prefix + ".denovo"), VERSION)
+        write_bam(results_denovo, (out_prefix + ".denovo"), VERSION)
 
         if not args.no_igv:
             # Convert ROI list to string format for IGV.js
