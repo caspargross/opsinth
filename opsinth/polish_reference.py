@@ -1,75 +1,77 @@
-import mappy as mp
+import os
 import subprocess
 import logging
-import os
+from opsinth.utils import *
+from opsinth.analysis import *
 
-def run_minimap2(reads_file, ref_file, output_file, threads=4):
-    """Map reads to a reference sequence using mappy (minimap2)."""
-    try:
-        # Open the reference file with mappy
-        aligner = mp.Aligner(ref_file, preset='map-ont', n_threads=threads)
-        if not aligner:
-            raise Exception("Failed to load/build index for reference file.")
+def run_polish_denovo(results_denovo, out_prefix, n_polish_rounds=1, delete_intermediate_files=True):
+    
+    logging.info(f"Start {n_polish_rounds} rounds of polishing")
 
-        # Open the reads file and output SAM file
-        with open(reads_file, 'r') as reads, open(output_file, 'w') as out:
-            for name, seq, qual in mp.fastx_read(reads):
-                for hit in aligner.map(seq):
-                    # Write each alignment to the SAM file
-                    out.write(f"{name}\t{hit.flag}\t{hit.ctg}\t{hit.r_st + 1}\t{hit.mapq}\t{hit.cigar_str}\t*\t0\t0\t{seq}\t{qual}\n")
+    roi = results_denovo.get('roi')
+    reads_aligned = results_denovo.get('reads_aligned')
+    reads = results_denovo.get('reads')
+    seq_unpolished = results_denovo.get('seq_denovo')
+      
+    polish_stats = {}
+
+    for i in range(n_polish_rounds):
+
+        # Prepare input files for racon
+        polish_alignment_file = f"{out_prefix}.polish_round_{i}.aln.sam"
+        polish_ref_file = f"{out_prefix}.polish_round_{i}.seq.fasta"
+        polish_query_file = f"{out_prefix}.polish_round_{i}.reads.fastq"
+
+        write_bam(reads_aligned, reads, roi, polish_alignment_file, output_format_bam=False)
+        write_fasta(seq_unpolished, roi, polish_ref_file)
+        write_fastq(reads_aligned, polish_query_file)
         
-        logging.info("minimap2 (mappy) completed successfully.")
-    except Exception as e:
-        logging.error(f"minimap2 (mappy) failed: {str(e)}")
-        raise
+        logging.debug(f"Running racon with {polish_query_file}, {polish_alignment_file}, {polish_ref_file}")
 
-def run_racon(reads_file, sam_file, ref_file, output_file, threads=4):
+        # Run racon
+        seq_polished = run_racon(polish_query_file, polish_alignment_file, polish_ref_file)
+        write_fasta(seq_polished, roi, (out_prefix + ".polished"))
+
+        polish_stats[i] = evaluate_racon_improvement(seq_unpolished, seq_polished)
+        
+        logging.info(f"Polish round {i} / {n_polish_rounds} completed")
+
+        # Update input files for next round
+        if i < n_polish_rounds - 1:
+            seq_unpolished = seq_polished
+            reads_aligned = align_reads_to_ref(results_denovo.get('reads_aligned'), results_denovo.get('no_anchor_reads'), results_denovo.get('unique_anchor_reads'), results_denovo.get('double_anchor_reads'), results_denovo.get('anchors_on_reads'), seq_polished, results_denovo.get('anchors_on_ref'))
+
+        if delete_intermediate_files and i < n_polish_rounds - 1:
+            os.remove(polish_alignment_file)
+            os.remove(polish_ref_file)
+            os.remove(polish_query_file)
+    
+    # Update results_denovo with polished sequence  
+    results_denovo['seq_polished'] = seq_polished
+    results_denovo['polish_stats'] = polish_stats
+    results_denovo['reads_aligned'] = reads_aligned
+
+    return results_denovo
+
+def run_racon(reads_file, sam_file, ref_file, threads=1, racon_path="lib/racon"):
     """Polish the alignment using racon."""
     try:
         cmd = [
-            "racon",
+            racon_path,
             "-t", str(threads),
             reads_file,
             sam_file,
-            ref_file,
-            output_file
+            ref_file
         ]
         result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
+        logging.debug(f"racon log: {result.stderr}")
         logging.info("racon completed successfully.")
+        seq = result.stdout.decode().splitlines()[1]
+        return seq
+
     except subprocess.CalledProcessError as e:
         logging.error(f"racon failed: {e.stderr.decode()}")
         raise
 
-def polish_reference(reads_file, ref_file, output_prefix, threads=4):
-    """Interface to map reads and polish the reference sequence."""
-    sam_file = f"{output_prefix}.sam"
-    polished_ref_file = f"{output_prefix}_polished.fasta"
-
-    logging.info("Starting minimap2 to map reads to reference.")
-    run_minimap2(reads_file, ref_file, sam_file, threads)
-
-    logging.info("Starting racon to polish the reference.")
-    run_racon(reads_file, sam_file, ref_file, polished_ref_file, threads)
-
-    logging.info(f"Polished reference sequence saved to {polished_ref_file}")
-
-if __name__ == "__main__":
-    import argparse
-
-    parser = argparse.ArgumentParser(description="Polish a draft reference sequence using minimap2 and racon.")
-    parser.add_argument('--reads', required=True, help='Path to reads file (FASTQ)')
-    parser.add_argument('--ref', required=True, help='Path to draft reference sequence (FASTA)')
-    parser.add_argument('--out', required=True, help='Output prefix for generated files')
-    parser.add_argument('--threads', type=int, default=4, help='Number of threads to use')
-    parser.add_argument('-v', '--verbose', action='count', default=0, help='Increase verbosity level (e.g., -v, -vv, -vvv)')
-
-    args = parser.parse_args()
-
-    # Configure logging
-    log_level = logging.WARNING if args.verbose == 0 else logging.INFO if args.verbose == 1 else logging.DEBUG
-    logging.basicConfig(level=log_level, format='%(asctime)s - %(levelname)s - %(message)s')
-
-    try:
-        polish_reference(args.reads, args.ref, args.out, args.threads)
-    except Exception as e:
-        logging.error(f"An error occurred: {e}") 
+def evaluate_racon_improvement(seq_unpolished, seq_polished):
+    pass

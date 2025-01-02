@@ -1,4 +1,5 @@
 # opsin_analysis/utils.py
+from opsinth import VERSION
 import pysam
 import logging
 import sys
@@ -74,13 +75,22 @@ def aln_length_cigar(cigarstring):
             
     return length
 
+def write_fastq(reads, outfile):
+    out_prefix=outfile.replace(".fastq", "")
+    # Works on aligned reads
+    with open(f"{out_prefix}.fastq", "w") as fastq_file:
+        for readname in reads:
+            read = reads[readname]
+            fastq_file.write(f"@{readname}\n{read['seq']}\n+\n{pysam.qualities_to_qualitystring(read['query_qualities'])}\n")
 
-def write_bam(results, out_prefix, version, template_bam = False):
+def write_bam(reads_aligned, reads, roi, out, version=VERSION, template_bam = False , output_format_bam = True):
 
-    unsortedbam = f"{out_prefix}.unsorted.bam"
-    outbam = f"{out_prefix}.bam"
-    reads_aligned = results['reads_aligned']
-    roi = results['roi']
+    out_prefix = out.replace(".sam", "").replace(".bam", "")
+    if output_format_bam:
+        outfile = f"{out_prefix}.unsorted.bam"
+        outfile_final = f"{out_prefix}.bam"
+    else:
+        outfile = f"{out_prefix}.sam"
 
     # Define PG Line
     pg_line = {
@@ -115,23 +125,27 @@ def write_bam(results, out_prefix, version, template_bam = False):
         }
     
 
-    
-    with pysam.AlignmentFile(unsortedbam, "wb", header = header) as outf:
+    if output_format_bam:
+        write_format = "wb"
+    else:
+        write_format = "w" # Write in SAM format
+
+    with pysam.AlignmentFile(outfile, write_format, header = header) as outf:
         for read in reads_aligned:
             
             a = pysam.AlignedSegment()
 
             # Recreate old coordinates for genome references
             if template_bam:
-                a.reference_id  = results['reads'][read]['reference_id']
+                a.reference_id  = reads[read]['reference_id']
                 #a.reference_start = roi[0][1] + reads_aligned[read]['aln']['locations'][0][0]
-                a.tags = results['reads'][read]['tags'] #TODO: Add edit distance, remove obsolete tags
+                a.tags = reads[read]['tags'] #TODO: Add edit distance, remove obsolete tags
 
             # Use new coordinates for denovo reference
             else:
                 a.reference_id = 0
                 #a.reference_start =  reads_aligned[read]['aln']['locations'][0][1]
-                a.tags = results['reads'][read]['tags'] #TODO: Add edit distance, remove obsolete tags
+                a.tags = reads[read]['tags'] #TODO: Add edit distance, remove obsolete tags
 
             # This is always the same
             a.query_name = read
@@ -144,31 +158,33 @@ def write_bam(results, out_prefix, version, template_bam = False):
 
             outf.write(a)
     
-    # Sort the temporary BAM file and write to the final output BAM file
-    sort_successful = False
-    index_successful = False
+    if output_format_bam:
+        # Sort the temporary BAM file and write to the final output BAM file
+        sort_successful = False
+        index_successful = False
 
-    try:
-        pysam.sort("-o", outbam, unsortedbam, add_pg=True)
-        sort_successful = True
-    except Exception as e:
-        logging.error(f"Error sorting BAM file: {e}")
+        try:
+            pysam.sort("-o", outfile_final, outfile, add_pg=True)
+            sort_successful = True
+        except Exception as e:
+            logging.error(f"Error sorting BAM file: {e}")
 
-    # Index the sorted BAM file
-    try:
-        pysam.index(outbam)
-        index_successful = True
-    except Exception as e:
-        logging.error(f"Error indexing BAM file: {e}")
+        # Index the sorted BAM file
+        try:
+            pysam.index(outfile_final)
+            index_successful = True
+        except Exception as e:
+            logging.error(f"Error indexing BAM file: {e}")
 
-    # Remove the temporary BAM file only if both operations were successful
-    if sort_successful and index_successful:
-        import os
-        os.remove(unsortedbam)
-        logging.info("Sorting and Indexing successfull, removed temp output")
+        # Remove the temporary BAM file only if both operations were successful
+        if sort_successful and index_successful:
+            import os
+            os.remove(outfile)
+            logging.info("Sorting and Indexing successfull, removed temp output")
 
 
-def write_fasta_file(seq, roi, out_prefix):
+def write_fasta(seq, roi, outfile):
+    out_prefix=outfile.replace(".fasta", "")
     with open(f"{out_prefix}.fasta", "w") as fasta_file:
         fasta_file.write(f">{roi[0][0]} {roi[0][1]}-{roi[0][2]}\n")
         fasta_file.write(seq + "\n")

@@ -27,7 +27,7 @@ def read_files(bam_path, bed_path, ref_path, anchors_path):
 
 def run_ref_analysis(**kwargs):
     
-    logging.info("Start analysis")
+    logging.info("Start analysis on reference")
     
     bam = kwargs.get('bam')
     roi = kwargs.get('roi')

@@ -1,5 +1,5 @@
 # opsinth/opsinth.py
-VERSION = "0.1" 
+
 
 import argparse
 import os
@@ -8,6 +8,7 @@ from opsinth.analysis import *
 from opsinth.plotting import *
 from opsinth.utils import configure_logging
 from opsinth.igv_viewer import create_igv_html, open_igv_viewer
+from opsinth.polish_reference import run_polish_denovo
 
 class Opsinth:
     def __init__(self):
@@ -33,28 +34,36 @@ class Opsinth:
         # Read files
         dataset = read_files(args.bam, args.bed, args.ref, args.anchors)
 
-        # Run analysis
-        results_ref = run_ref_analysis(**dataset)
-        results_denovo = run_denovo_analysis(results_ref, dataset)
-        
-        # Determine output directory and prefix
+        # Determine output directory and prefix        # Determine output directory and prefix
         output_dir = os.path.dirname(args.out)
         if output_dir:
             os.makedirs(output_dir, exist_ok=True)
             out_prefix = os.path.join(output_dir, "opsinth")
         else:
             out_prefix = args.out
-        
+
+        # Run analysis
+        results_ref = run_ref_analysis(**dataset)
+        results_denovo = run_denovo_analysis(results_ref, dataset)
+        results_polished = run_polish_denovo(results_denovo, out_prefix)
+
         # Plot and write reference results
         plot_coverage(results_ref, (out_prefix + ".ref"))
         plot_alignment_quality(results_ref, (out_prefix + ".ref"))
-        write_bam(results_ref,(out_prefix + ".ref"), VERSION, args.bam)
+        write_bam(results_ref.get('reads_aligned'), results_ref.get('reads'), results_ref.get('roi'), (out_prefix + ".ref"), VERSION, args.bam)
 
         # Plot and write denovo results
-        write_fasta_file(results_denovo.get('seq_denovo'), results_denovo.get('roi'), (out_prefix + ".denovo"))
+        write_fasta(results_denovo.get('seq_denovo'), results_denovo.get('roi'), (out_prefix + ".denovo"))
         plot_coverage(results_denovo, (out_prefix + ".denovo"))
         plot_alignment_quality(results_denovo, (out_prefix + ".denovo"))
-        write_bam(results_denovo, (out_prefix + ".denovo"), VERSION)
+        write_bam(results_denovo.get('reads_aligned'), results_denovo.get('reads'), results_denovo.get('roi'), (out_prefix + ".denovo"), VERSION, args.bam, output_format_bam=False)
+
+        # Plot and write polished results
+        plot_coverage(results_polished, (out_prefix + ".denovo.polished"))
+        plot_alignment_quality(results_polished, (out_prefix + ".denovo.polished"))
+        write_bam(results_polished.get('reads_aligned'), results_polished.get('reads'), results_polished.get('roi'), (out_prefix + ".denovo.polished"), VERSION, args.bam, output_format_bam=False)
+    
+
 
         if not args.no_igv:
             # Convert ROI list to string format for IGV.js
