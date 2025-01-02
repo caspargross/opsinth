@@ -352,10 +352,10 @@ def align_reads_to_ref(reads, no_anchor_reads, unique_read_anchors, double_ancho
 
         is_lower_anchor = anchors_on_ref['forward'].index(anchor) < anchors_on_ref['reverse'].index(anchor)
         
+        # Edlib coordinates are 1-based ?
         anchor_start_on_ref = anchors_on_ref['anchor_positions'][anchor]['start']
         anchor_end_on_ref = anchors_on_ref['anchor_positions'][anchor]['end']
-        
-        anchor_start_on_read = anchors_on_reads[read][anchor]['locations'][0][0]
+        anchor_start_on_read =anchors_on_reads[read][anchor]['locations'][0][0]
         anchor_end_on_read = anchors_on_reads[read][anchor]['locations'][0][1]
 
         if reads[read]['strand'] == "+" : # + Forward read  
@@ -365,9 +365,9 @@ def align_reads_to_ref(reads, no_anchor_reads, unique_read_anchors, double_ancho
                 ref_from_anchor = seq_ref[anchor_start_on_ref:]    
                 alignment_cases['A'] += 1
             else: # Case B
-                seq_from_anchor = reads[read]['seq_query'][:anchor_end_on_read][::-1]
-                qual_from_anchor = reads[read]['query_qualities'][:anchor_end_on_read][::-1]
-                ref_from_anchor = seq_ref[:anchor_end_on_ref][::-1]
+                seq_from_anchor = reads[read]['seq_query'][:anchor_end_on_read+1][::-1]
+                qual_from_anchor = reads[read]['query_qualities'][:anchor_end_on_read+1][::-1]
+                ref_from_anchor = seq_ref[:anchor_end_on_ref+1][::-1]
                 alignment_cases['B'] += 1
         elif reads[read]['strand'] == "-": # - Reverse read
             if is_lower_anchor: # Case C
@@ -376,9 +376,9 @@ def align_reads_to_ref(reads, no_anchor_reads, unique_read_anchors, double_ancho
                 ref_from_anchor = seq_ref[anchor_start_on_ref:]
                 alignment_cases['C'] += 1
             else: # Case D
-                seq_from_anchor = reads[read]['seq_query'][:anchor_end_on_read][::-1]
-                qual_from_anchor = reads[read]['query_qualities'][:anchor_end_on_read][::-1]
-                ref_from_anchor = seq_ref[:anchor_end_on_ref][::-1]
+                seq_from_anchor = reads[read]['seq_query'][:anchor_end_on_read+1][::-1]
+                qual_from_anchor = reads[read]['query_qualities'][:anchor_end_on_read+1][::-1]
+                ref_from_anchor = seq_ref[:anchor_end_on_ref+1][::-1]
                 alignment_cases['D'] += 1
 
         
@@ -400,7 +400,7 @@ def align_reads_to_ref(reads, no_anchor_reads, unique_read_anchors, double_ancho
             reads_aligned[read]['seq'] = seq_from_anchor[::-1]
             reads_aligned[read]['query_qualities'] = qual_from_anchor[::-1]
 
-            new_aln_start = anchor_end_on_ref - reads_aligned[read]['ref_length']
+            new_aln_start = anchor_end_on_ref - reads_aligned[read]['ref_length'] + 1
             rev_cigar = reverse_cigar(reads_aligned[read]['aln']['cigar'])
 
             aln_original = reads_aligned[read]['aln'].copy()

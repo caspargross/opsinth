@@ -149,6 +149,7 @@ def write_bam(reads_aligned, reads, roi, out, version=VERSION, template_bam = Fa
 
             # This is always the same
             a.query_name = read
+            # Reference start is 1-based (POS)
             a.reference_start = roi[0][1] + reads_aligned[read]['reference_start']
             a.query_sequence = reads_aligned[read]['seq']
             a.flag = 0 if reads_aligned[read]['strand'] == "+" else 16
@@ -186,6 +187,7 @@ def write_bam(reads_aligned, reads, roi, out, version=VERSION, template_bam = Fa
 def write_fasta(seq, roi, outfile):
     out_prefix=outfile.replace(".fasta", "")
     with open(f"{out_prefix}.fasta", "w") as fasta_file:
+        # Fasta header coordinates are 0-based
         fasta_file.write(f">{roi[0][0]} {roi[0][1]}-{roi[0][2]}\n")
         fasta_file.write(seq + "\n")
     logging.info(f"Draft sequence written to {out_prefix}.fasta")   
