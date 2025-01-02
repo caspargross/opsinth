@@ -81,7 +81,15 @@ def write_fastq(reads, outfile):
     with open(f"{out_prefix}.fastq", "w") as fastq_file:
         for readname in reads:
             read = reads[readname]
-            fastq_file.write(f"@{readname}\n{read['seq']}\n+\n{pysam.qualities_to_qualitystring(read['query_qualities'])}\n")
+            seq = read['seq']
+            quals = read['query_qualities']
+            
+            # Reverse complement sequence and reverse qualities for reverse strand reads
+            if read['strand'] == '-':
+                seq = seq[::-1].translate(str.maketrans('ACGT', 'TGCA'))
+                quals = quals[::-1]
+                
+            fastq_file.write(f"@{readname}\n{seq}\n+\n{pysam.qualities_to_qualitystring(quals)}\n")
 
 def write_bam(reads_aligned, reads, roi, out, version=VERSION, template_bam = False , output_format_bam = True):
 

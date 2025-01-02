@@ -44,26 +44,25 @@ class Opsinth:
 
         # Run analysis
         results_ref = run_ref_analysis(**dataset)
-        results_denovo = run_denovo_analysis(results_ref.copy())
-        results_polished = run_polish_denovo(results_denovo.copy(), out_prefix)
+        results_denovo = run_denovo_analysis(results_ref)
+        results_polished = run_polish_denovo(results_denovo, out_prefix)
 
         # Plot and write reference results
         plot_coverage(results_ref, (out_prefix + ".ref"))
         plot_alignment_quality(results_ref, (out_prefix + ".ref"))
         write_bam(results_ref.get('reads_aligned'), results_ref.get('reads'), results_ref.get('roi'), (out_prefix + ".ref"), VERSION, args.bam)
 
-        # Plot and write denovo results
-        write_fasta(results_denovo.get('seq_denovo'), results_denovo.get('roi'), (out_prefix + ".denovo"))
-        plot_coverage(results_denovo, (out_prefix + ".denovo"))
-        plot_alignment_quality(results_denovo, (out_prefix + ".denovo"))
-        write_bam(results_denovo.get('reads_aligned'), results_denovo.get('reads'), results_denovo.get('roi'), (out_prefix + ".denovo"), VERSION)
+        ## Plot and write denovo results
+        #write_fasta(results_denovo.get('seq_denovo'), results_denovo.get('roi'), (out_prefix + ".denovo"))
+        #plot_coverage(results_denovo, (out_prefix + ".denovo"))
+        #plot_alignment_quality(results_denovo, (out_prefix + ".denovo"))
+        #write_bam(results_denovo.get('reads_aligned'), results_denovo.get('reads'), results_denovo.get('roi'), (out_prefix + ".denovo"), VERSION)
 
         # Plot and write polished results
         plot_coverage(results_polished, (out_prefix + ".denovo.polished"))
         plot_alignment_quality(results_polished, (out_prefix + ".denovo.polished"))
         write_bam(results_polished.get('reads_aligned'), results_polished.get('reads'), results_polished.get('roi'), (out_prefix + ".denovo.polished"), VERSION)
     
-
 
         if not args.no_igv:
             # Convert ROI list to string format for IGV.js

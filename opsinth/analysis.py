@@ -399,7 +399,7 @@ def align_reads_to_ref(reads, no_anchor_reads, unique_read_anchors, double_ancho
         else:
             reads_aligned[read]['seq'] = seq_from_anchor[::-1]
             reads_aligned[read]['query_qualities'] = qual_from_anchor[::-1]
-
+            
             new_aln_start = anchor_end_on_ref - reads_aligned[read]['ref_length'] + 1
             rev_cigar = reverse_cigar(reads_aligned[read]['aln']['cigar'])
 

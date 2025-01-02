@@ -4,7 +4,7 @@ import logging
 from opsinth.utils import *
 from opsinth.analysis import *
 
-def run_polish_denovo(results, out_prefix, n_polish_rounds=2, delete_intermediate_files=False):
+def run_polish_denovo(results, out_prefix, n_polish_rounds=1, delete_intermediate_files=False):
     
     logging.info(f"Start {n_polish_rounds} rounds of polishing")
 
@@ -102,7 +102,17 @@ def evaluate_racon_improvement(seq_unpolished, seq_polished):
     insertions = cigar.count('I')
     deletions = cigar.count('D')
     
+    # Get nice alignment for debug logging
+    nice_aln = edlib.getNiceAlignment(alignment, seq_unpolished, seq_polished)
+    with open('polish_alignment.txt', 'w') as f:
+        f.write("Alignment of unpolished vs polished sequence:\n")
+        f.write(f"Query:  {nice_aln['query_aligned']}\n")
+        f.write(f"        {nice_aln['matched_aligned']}\n") 
+        f.write(f"Target: {nice_aln['target_aligned']}\n")
+    
     stats = {
+        'len_unpolished': len(seq_unpolished),
+        'len_polished': len(seq_polished),
         'edit_distance': alignment['editDistance'],
         'matches': matches,
         'mismatches': mismatches,
