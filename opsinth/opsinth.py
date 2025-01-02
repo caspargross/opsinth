@@ -44,8 +44,8 @@ class Opsinth:
 
         # Run analysis
         results_ref = run_ref_analysis(**dataset)
-        results_denovo = run_denovo_analysis(results_ref, dataset)
-        results_polished = run_polish_denovo(results_denovo, out_prefix)
+        results_denovo = run_denovo_analysis(results_ref.copy())
+        results_polished = run_polish_denovo(results_denovo.copy(), out_prefix)
 
         # Plot and write reference results
         plot_coverage(results_ref, (out_prefix + ".ref"))
@@ -56,12 +56,12 @@ class Opsinth:
         write_fasta(results_denovo.get('seq_denovo'), results_denovo.get('roi'), (out_prefix + ".denovo"))
         plot_coverage(results_denovo, (out_prefix + ".denovo"))
         plot_alignment_quality(results_denovo, (out_prefix + ".denovo"))
-        write_bam(results_denovo.get('reads_aligned'), results_denovo.get('reads'), results_denovo.get('roi'), (out_prefix + ".denovo"), VERSION, args.bam, output_format_bam=False)
+        write_bam(results_denovo.get('reads_aligned'), results_denovo.get('reads'), results_denovo.get('roi'), (out_prefix + ".denovo"), VERSION)
 
         # Plot and write polished results
         plot_coverage(results_polished, (out_prefix + ".denovo.polished"))
         plot_alignment_quality(results_polished, (out_prefix + ".denovo.polished"))
-        write_bam(results_polished.get('reads_aligned'), results_polished.get('reads'), results_polished.get('roi'), (out_prefix + ".denovo.polished"), VERSION, args.bam, output_format_bam=False)
+        write_bam(results_polished.get('reads_aligned'), results_polished.get('reads'), results_polished.get('roi'), (out_prefix + ".denovo.polished"), VERSION)
     
 
 

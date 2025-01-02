@@ -4,14 +4,15 @@ import logging
 from opsinth.utils import *
 from opsinth.analysis import *
 
-def run_polish_denovo(results_denovo, out_prefix, n_polish_rounds=1, delete_intermediate_files=True):
+def run_polish_denovo(results, out_prefix, n_polish_rounds=2, delete_intermediate_files=False):
     
     logging.info(f"Start {n_polish_rounds} rounds of polishing")
 
-    roi = results_denovo.get('roi')
-    reads_aligned = results_denovo.get('reads_aligned')
-    reads = results_denovo.get('reads')
-    seq_unpolished = results_denovo.get('seq_denovo')
+    roi = results.get('roi').copy()
+    reads_aligned = results.get('reads_aligned').copy() 
+    reads = results.get('reads').copy()
+    anchors = results.get('anchors').copy()
+    seq_unpolished = results.get('seq_denovo')
       
     polish_stats = {}
 
@@ -23,6 +24,7 @@ def run_polish_denovo(results_denovo, out_prefix, n_polish_rounds=1, delete_inte
         polish_query_file = f"{out_prefix}.polish_round_{i}.reads.fastq"
 
         write_bam(reads_aligned, reads, roi, polish_alignment_file, output_format_bam=False)
+        write_bam(reads_aligned, reads, roi, polish_alignment_file)
         write_fasta(seq_unpolished, roi, polish_ref_file)
         write_fastq(reads_aligned, polish_query_file)
         
@@ -30,28 +32,44 @@ def run_polish_denovo(results_denovo, out_prefix, n_polish_rounds=1, delete_inte
 
         # Run racon
         seq_polished = run_racon(polish_query_file, polish_alignment_file, polish_ref_file)
-        write_fasta(seq_polished, roi, (out_prefix + ".polished"))
 
+        # Evaluate sequence improvements in last round
         polish_stats[i] = evaluate_racon_improvement(seq_unpolished, seq_polished)
         
         logging.info(f"Polish round {i} / {n_polish_rounds} completed")
 
         # Update input files for next round
-        if i < n_polish_rounds - 1:
+        if i < n_polish_rounds:
             seq_unpolished = seq_polished
-            reads_aligned = align_reads_to_ref(results_denovo.get('reads_aligned'), results_denovo.get('no_anchor_reads'), results_denovo.get('unique_anchor_reads'), results_denovo.get('double_anchor_reads'), results_denovo.get('anchors_on_reads'), seq_polished, results_denovo.get('anchors_on_ref'))
+                    
+            # Align anchors to draft reference sequence
+            anchors_on_ref = align_anchors_to_ref(anchors, seq_unpolished)
 
-        if delete_intermediate_files and i < n_polish_rounds - 1:
+            min_pos = min([anchor['start'] for anchor in anchors_on_ref['anchor_positions'].values()])
+            max_pos = max([anchor['end'] for anchor in anchors_on_ref['anchor_positions'].values()])
+            roi = [[f"ref_denovo_polished", min_pos, max_pos]]
+
+            # Find anchors on reads
+            anchors_on_reads = find_anchors_on_reads(reads, anchors_on_ref) #TODO: Is this redundant? Alreadty calculated in ref analysis already ??
+
+            # Characterize reads into no anchor, unique anchor and double anchor reads
+            (no_anchor_reads, unique_anchor_reads, double_anchor_reads) = characterize_read_anchors(reads, anchors_on_ref, anchors_on_reads) # Redundant, was calculated in ref analysis already 
+            
+            reads_aligned = align_reads_to_ref(reads, no_anchor_reads, unique_anchor_reads, double_anchor_reads, anchors_on_reads, seq_unpolished, anchors_on_ref)
+
+        if delete_intermediate_files:
+            logging.debug(f"Deleting intermediate files for polish round {i}")
             os.remove(polish_alignment_file)
             os.remove(polish_ref_file)
             os.remove(polish_query_file)
-    
-    # Update results_denovo with polished sequence  
-    results_denovo['seq_polished'] = seq_polished
-    results_denovo['polish_stats'] = polish_stats
-    results_denovo['reads_aligned'] = reads_aligned
 
-    return results_denovo
+        # Update results_denovo with polished sequence  
+        results['seq_polished'] = seq_polished
+        results['polish_stats'] = polish_stats
+        results['roi'] = roi
+        results['reads_aligned'] = reads_aligned
+
+    return results
 
 def run_racon(reads_file, sam_file, ref_file, threads=1, racon_path="lib/racon"):
     """Polish the alignment using racon."""
@@ -74,4 +92,23 @@ def run_racon(reads_file, sam_file, ref_file, threads=1, racon_path="lib/racon")
         raise
 
 def evaluate_racon_improvement(seq_unpolished, seq_polished):
-    pass
+    # Perform global alignment
+    alignment = edlib.align(seq_unpolished, seq_polished, mode="NW", task="path")
+    
+    # Parse CIGAR string to count operations
+    cigar = alignment['cigar']
+    matches = cigar.count('=')
+    mismatches = cigar.count('X') 
+    insertions = cigar.count('I')
+    deletions = cigar.count('D')
+    
+    stats = {
+        'edit_distance': alignment['editDistance'],
+        'matches': matches,
+        'mismatches': mismatches,
+        'insertions': insertions, 
+        'deletions': deletions
+    }
+    
+    logging.info(f"Racon stats: {stats}")
+    return stats

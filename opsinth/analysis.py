@@ -61,7 +61,7 @@ def run_ref_analysis(**kwargs):
         'reads': reads
     }
 
-def run_denovo_analysis(results_ref, dataset):
+def run_denovo_analysis(results_ref):
     
     logging.info("Start denovo analysis")
 
@@ -82,16 +82,8 @@ def run_denovo_analysis(results_ref, dataset):
     
     reads_aligned = align_reads_to_ref(reads, no_anchor_reads, unique_anchor_reads, double_anchor_reads, anchors_on_reads, seq_draft, anchors_on_ref)
 
-    
-    # Update roi = max extend of anchors on draft seq
-    min_pos = 1e8
-    max_pos = 0
-    for anchor in anchors_on_ref['anchor_positions']:
-        current_min = anchors_on_ref['anchor_positions'][anchor]['start']
-        current_max = anchors_on_ref['anchor_positions'][anchor]['end']
-        min_pos = min(min_pos, current_min)
-        max_pos = max(max_pos, current_max)
-    
+    min_pos = min(anchor['start'] for anchor in anchors_on_ref['anchor_positions'].values())
+    max_pos = max(anchor['end'] for anchor in anchors_on_ref['anchor_positions'].values())
     roi = [["denovo_ref", min_pos, max_pos]]
     
     return {
