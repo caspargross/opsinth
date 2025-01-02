@@ -1,11 +1,12 @@
 - [ ] Define what to do with female samples (haploid X)
 - [ ] Integrate output from Paraphase
-- [ ] Indel Realignment / Merging in edlib alignments required
-- [ ] Polish consensus (racon)
 - [ ] Write correct seq name into BAM for denovo seq
 - [ ] Fix overhanging read ends for long reads. Maybe use softclips? Or cut to roi before alignment?
 - [ ] Add edit distance to BAM tags
-- [ ] Try to align double anchored reads in reverse orientation
+- [ ] Try to align double anchored reads in reverse orientation: Why was this needed?
+- [ ] Better object oriented programming. Results class.
+- [O] Indel Realignment / Merging in edlib alignments required: Replaced by Racon consensus?
+- [X] Polish consensus (racon)
 - [X] Fix coverage plot for denovo seq
 - [X] What is up with seqs that completely fail to map?: Else with "continue 
 - [X] Multiple alignments for reads without anchors: Always use first
