@@ -70,6 +70,19 @@
                 "--out", "tests/output/opsin",
                 "-v"
             ]
+        },
+        {
+            "name": "Map OPN1 Genes",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "opsinth.find_genes",
+            "console": "integratedTerminal",
+            "args": [
+                "--reference", "tests/out/crispr/opsinth.denovo.polished.fasta",
+                "--query", "data/GRCh38.OPN1LW-201.exons.fa",
+                "--output", "test"
+            ],
+            "justMyCode": true
         }
     ]
 }
