@@ -1,11 +1,17 @@
 - [ ] Define what to do with female samples (haploid X)
 - [ ] Integrate output from Paraphase
 - [ ] Write correct seq name into BAM for denovo seq
-- [ ] Fix overhanging read ends for long reads. Maybe use softclips? Or cut to roi before alignment?
 - [ ] Add edit distance to BAM tags
 - [ ] Try to align double anchored reads in reverse orientation: Why was this needed?
+- [ ] Output racon polishing stats to text file instead of log?
 - [ ] Better object oriented programming. Results class.
-- [O] Indel Realignment / Merging in edlib alignments required: Replaced by Racon consensus?
+- [ ] Create draft seq from overlapping reads if no spanning are available.
+- [ ] Create Plot with https://github.com/Edinburgh-Genome-Foundry/DnaFeaturesViewer
+- [ ] Create comparative plot to ref with https://github.com/moshi4/pyGenomeViz
+- [ ] Plot linear regression for alignment Quality (Edit distance). Maybe show in Plots
+- [ ] Add pytests
+- [X] Indel Realignment / Merging in edlib alignments required: Replaced by Racon consensus!
+- [X] Fix overhanging read ends for long reads. Maybe use softclips? Or cut to roi before alignment?
 - [X] Polish consensus (racon)
 - [X] Fix coverage plot for denovo seq
 - [X] What is up with seqs that completely fail to map?: Else with "continue 

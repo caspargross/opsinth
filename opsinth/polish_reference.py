@@ -4,7 +4,7 @@ import logging
 from opsinth.utils import *
 from opsinth.analysis import *
 
-def run_polish_denovo(results, out_prefix, n_polish_rounds=2, delete_intermediate_files=True):
+def run_polish_denovo(results, out_prefix, n_polish_rounds=4, delete_intermediate_files=True):
     
     logging.info(f"Start {n_polish_rounds} rounds of polishing")
 
@@ -24,7 +24,7 @@ def run_polish_denovo(results, out_prefix, n_polish_rounds=2, delete_intermediat
         polish_query_file = f"{out_prefix}.polish_round_{i}.reads.fastq"
 
         write_bam(reads_aligned, reads, roi, polish_alignment_file, output_format_bam=False)
-        write_bam(reads_aligned, reads, roi, polish_alignment_file)
+        #write_bam(reads_aligned, reads, roi, polish_alignment_file)
         write_fasta(seq_unpolished, roi, polish_ref_file)
         write_fastq(reads_aligned, polish_query_file)
         
@@ -36,7 +36,7 @@ def run_polish_denovo(results, out_prefix, n_polish_rounds=2, delete_intermediat
         # Evaluate sequence improvements in last round
         polish_stats[i] = evaluate_racon_improvement(seq_unpolished, seq_polished)
         
-        logging.info(f"Polish round {i} / {n_polish_rounds} completed")
+        logging.info(f"Polish round {i+1} / {n_polish_rounds} completed")
 
         # Update input files for next round
         if i < n_polish_rounds:
