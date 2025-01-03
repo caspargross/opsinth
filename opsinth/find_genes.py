@@ -3,44 +3,57 @@ import logging
 from pathlib import Path
 from typing import List, Tuple, Optional
 
-def align_sequences(reference_path: str, query_path: str, preset: str = "map-ont") -> List[Tuple[str, str, int, int, int, int, int, str, str]]:
+def align_sequences(reference_path: str, query_path: str, preset: str = "map-ont") -> List[dict]:
     """
     Align sequences using minimap2 and return alignment results.
     
     Args:
         reference_path: Path to reference FASTA file
         query_path: Path to query FASTA file
+        preset: Minimap2 preset (default: map-ont)
         
     Returns:
-        List of tuples containing (reference_name, query_name, ref_start, ref_end, 
-                                 query_start, query_end, mapping_quality, cigar, strand)
+        List of dictionaries containing alignment information:
+        {
+            'reference_name': Name of reference sequence,
+            'query_name': Name of query sequence,
+            'ref_start': Start position on reference,
+            'ref_end': End position on reference,
+            'query_start': Start position on query,
+            'query_end': End position on query,
+            'mapping_quality': Mapping quality score (0-60),
+            'cigar': CIGAR string describing alignment operations,
+            'strand': Strand orientation (+ or -),
+            'sequence_identity': Alignment identity score (0-1)
+        }
     """
     try:
-        # Create aligner object
-        aligner = mp.Aligner(reference_path, preset=preset)
+        # Create aligner object with eqx flag (0x4000000)
+        aligner = mp.Aligner(reference_path, preset=preset, extra_flags=0x4000000)
         if not aligner:
             raise Exception("Failed to load reference file")
 
         results = []
         
         # Read query sequences and perform alignment
-        for query_name, seq, qual in mp.fastx_read(query_path): # qual will be None for FASTA
+        for query_name, seq, qual in mp.fastx_read(query_path):
             if not seq:
                 continue
                 
             # Perform alignment
             for hit in aligner.map(seq):
-                results.append((
-                    hit.ctg,                # Reference sequence name
-                    query_name,             # Query sequence name
-                    hit.r_st,              # Start position on reference
-                    hit.r_en,              # End position on reference
-                    hit.q_st,              # Start position on query
-                    hit.q_en,              # End position on query
-                    hit.mapq,              # Mapping quality score
-                    hit.cigar_str,         # CIGAR string
-                    '-' if hit.strand == -1 else '+',  # Strand
-                ))
+                results.append({
+                    'reference_name': hit.ctg,
+                    'query_name': query_name,
+                    'ref_start': hit.r_st,
+                    'ref_end': hit.r_en,
+                    'query_start': hit.q_st,
+                    'query_end': hit.q_en,
+                    'mapping_quality': hit.mapq,
+                    'cigar': hit.cigar_str,
+                    'strand': '-' if hit.strand == -1 else '+',
+                    'sequence_identity': hit.mlen / hit.blen if hit.blen > 0 else 0
+                })
                 
         return results
     
@@ -48,12 +61,12 @@ def align_sequences(reference_path: str, query_path: str, preset: str = "map-ont
         logging.error(f"Error during sequence alignment: {str(e)}")
         raise
 
-def format_alignment_results(results: List[Tuple[str, str, int, int, int, int, int, str, str]]) -> str:
+def format_alignment_results(results: List[dict]) -> str:
     """
     Format alignment results into a readable string.
     
     Args:
-        results: List of alignment result tuples
+        results: List of alignment result dictionaries
         
     Returns:
         Formatted string containing alignment information
@@ -62,38 +75,344 @@ def format_alignment_results(results: List[Tuple[str, str, int, int, int, int, i
     output.append("Alignment Results:")
     output.append("-----------------")
     
-    for ref_name, query_name, ref_start, ref_end, q_start, q_end, mapq, cigar, strand in results:
-        output.append(f"Reference: {ref_name}")
-        output.append(f"Query: {query_name}")
-        output.append(f"Reference Position: {ref_start}-{ref_end}")
-        output.append(f"Query Position: {q_start}-{q_end}")
-        output.append(f"Mapping Quality: {mapq}")
-        output.append(f"CIGAR: {cigar}")
-        output.append(f"Strand: {strand}")
+    for hit in results:
+        output.append(f"Reference: {hit['reference_name']}")
+        output.append(f"Query: {hit['query_name']}")
+        output.append(f"Reference Position: {hit['ref_start']}-{hit['ref_end']}")
+        output.append(f"Query Position: {hit['query_start']}-{hit['query_end']}")
+        output.append(f"Mapping Quality: {hit['mapping_quality']}")
+        output.append(f"Sequence Identity: {hit['sequence_identity']:.2%}")
+        output.append(f"CIGAR: {hit['cigar']}")
+        output.append(f"Strand: {hit['strand']}")
         output.append("-----------------")
     
     return "\n".join(output)
 
-def write_bed_file(results: List[Tuple[str, str, int, int, int, int, int, str, str]], output_prefix: str):
+def write_bed_file(results: List[dict], output_prefix: str):
     """
     Write alignment results to BED format file.
     
     Args:
-        results: List of alignment result tuples
+        results: List of alignment result dictionaries
         output_prefix: Prefix for output files
     """
-    # Remove .txt extension if present and add .bed
     bed_path = output_prefix + '.bed'
     
     with open(bed_path, 'w') as f:
-        for ref_name, query_name, ref_start, ref_end, q_start, q_end, mapq, cigar, strand in results:
+        for hit in results:
             # BED format: chrom start end name score strand
-            bed_line = (f"{ref_name}\t{ref_start}\t{ref_end}\t"
-                       f"{query_name}_{q_start}-{q_end}\t"
-                       f"{mapq}\t{strand}\n")
+            bed_line = (f"{hit['reference_name']}\t{hit['ref_start']}\t{hit['ref_end']}\t"
+                       f"{hit['query_name']}_{hit['query_start']}-{hit['query_end']}\t"
+                       f"{hit['mapping_quality']}\t{hit['strand']}\n")
             f.write(bed_line)
     
     logging.info(f"BED file written to {bed_path}")
+
+def convert_coordinate(pos: int, cigar: str, direction: str = "query_to_ref", 
+                      query_start: int = 0, ref_start: int = 0) -> int:
+    """
+    Convert coordinates between query and reference positions using a CIGAR string.
+    Handles spliced alignments (N in CIGAR).
+    """
+    if direction not in ["query_to_ref", "ref_to_query"]:
+        raise ValueError("direction must be either 'query_to_ref' or 'ref_to_query'")
+        
+    # Check if position is before start
+    start_pos = query_start if direction == "query_to_ref" else ref_start
+    if pos < start_pos:
+        raise ValueError(f"Position {pos} is before start position {start_pos}")
+    
+    # Parse CIGAR string
+    import re
+    cigar_ops = re.findall(r'(\d+)([MIDNSHP=X])', cigar)
+    
+    curr_query = query_start
+    curr_ref = ref_start
+    
+    for length, op in cigar_ops:
+        length = int(length)
+        
+        if op in 'M=X':  # Match or mismatch
+            if direction == "query_to_ref":
+                if pos <= curr_query + length:
+                    return curr_ref + (pos - curr_query)
+            else:  # ref_to_query
+                if pos <= curr_ref + length:
+                    return curr_query + (pos - curr_ref)
+            curr_query += length
+            curr_ref += length
+            
+        elif op == 'I':  # Insertion to reference
+            if direction == "query_to_ref":
+                if pos <= curr_query + length:
+                    return curr_ref
+            curr_query += length
+            
+        elif op == 'D':  # Deletion from reference
+            if direction == "ref_to_query":
+                if pos <= curr_ref + length:
+                    return curr_query
+            curr_ref += length
+            
+        elif op == 'N':  # Skipped region/intron
+            curr_ref += length  # Only advance reference position
+            
+        elif op == 'S':  # Soft clipping
+            if direction == "query_to_ref":
+                if pos <= curr_query + length:
+                    return curr_ref
+            curr_query += length
+            
+    raise ValueError(f"Position {pos} is beyond the aligned region")
+
+# Wrapper functions for backward compatibility
+def query_to_ref_pos(query_pos: int, cigar: str, query_start: int = 0, ref_start: int = 0) -> int:
+    """Convert query position to reference position"""
+    return convert_coordinate(query_pos, cigar, "query_to_ref", query_start, ref_start)
+
+def ref_to_query_pos(ref_pos: int, cigar: str, query_start: int = 0, ref_start: int = 0) -> int:
+    """Convert reference position to query position"""
+    return convert_coordinate(ref_pos, cigar, "ref_to_query", query_start, ref_start)
+
+def format_pairwise_alignment(query_seq: str, ref_seq: str, cigar: str, 
+                            query_start: int = 0, ref_start: int = 0,
+                            line_width: int = 60) -> str:
+    """
+    Format a pairwise alignment in BLAST-like format.
+    
+    Args:
+        query_seq: Query sequence
+        ref_seq: Reference sequence
+        cigar: CIGAR string from alignment
+        query_start: Start position in query (default: 0)
+        ref_start: Start position in reference (default: 0)
+        line_width: Number of characters per line (default: 60)
+        
+    Returns:
+        Formatted string showing the alignment
+        
+    Example:
+        ref   : ACTG-TGCATGC
+        match : |||| |||||||
+        query : ACTGNTGCATGC
+    """
+    # Parse CIGAR string
+    import re
+    cigar_ops = re.findall(r'(\d+)([MIDNSHP=X])', cigar)
+    
+    # Initialize alignment strings
+    ref_aln = []
+    query_aln = []
+    match_aln = []
+    
+    curr_query = query_start
+    curr_ref = ref_start
+    
+    # Build alignment strings based on CIGAR operations
+    for length, op in cigar_ops:
+        length = int(length)
+        
+        if op in '=X':  # Match or mismatch
+            q_seq = query_seq[curr_query:curr_query + length]
+            r_seq = ref_seq[curr_ref:curr_ref + length]
+            ref_aln.append(r_seq)
+            query_aln.append(q_seq)
+            # Add match symbols
+            match_symbols = ''.join('|' if q == r else ' ' 
+                                  for q, r in zip(q_seq, r_seq))
+            match_aln.append(match_symbols)
+            curr_query += length
+            curr_ref += length
+            
+        elif op == 'M':  # Match or mismatch (old style)
+            q_seq = query_seq[curr_query:curr_query + length]
+            r_seq = ref_seq[curr_ref:curr_ref + length]
+            ref_aln.append(r_seq)
+            query_aln.append(q_seq)
+            # Add match symbols
+            match_symbols = ''.join('|' if q == r else ' ' 
+                                  for q, r in zip(q_seq, r_seq))
+            match_aln.append(match_symbols)
+            curr_query += length
+            curr_ref += length
+            
+        elif op == 'I':  # Insertion to reference
+            ref_aln.append('-' * length)
+            query_aln.append(query_seq[curr_query:curr_query + length])
+            match_aln.append(' ' * length)
+            curr_query += length
+            
+        elif op == 'D':  # Deletion from reference
+            ref_aln.append(ref_seq[curr_ref:curr_ref + length])
+            query_aln.append('-' * length)
+            match_aln.append(' ' * length)
+            curr_ref += length
+            
+        elif op == 'S':  # Soft clipping
+            # Skip soft clipped bases
+            curr_query += length
+    
+    # Join alignment strings
+    ref_str = ''.join(ref_aln)
+    match_str = ''.join(match_aln)
+    query_str = ''.join(query_aln)
+    
+    # Format output with line wrapping
+    output = []
+    for i in range(0, len(ref_str), line_width):
+        chunk_end = i + line_width
+        ref_chunk = ref_str[i:chunk_end]
+        match_chunk = match_str[i:chunk_end]
+        query_chunk = query_str[i:chunk_end]
+        
+        # Add position numbers
+        ref_pos = ref_start + i
+        query_pos = query_start + i
+        
+        output.extend([
+            f"ref  {ref_pos:>8}: {ref_chunk} :{ref_pos + len(ref_chunk)}",
+            f"               {match_chunk}",
+            f"query{query_pos:>8}: {query_chunk} :{query_pos + len(query_chunk)}",
+            ""
+        ])
+    
+    return "\n".join(output)
+
+
+def find_opsin_variants(alignment_dict, ref_seq):
+    """
+    Find the three key variants that distinguish OPN1MW from OPN1LW.
+    
+    Args:
+        alignment_dict: Dictionary containing alignment information
+        ref_seq: Reference sequence to compare against
+        
+    Returns:
+        Dictionary with variant information for each position
+    """
+    # Key positions in cDNA coordinates
+    variants = [
+        {'cdna_pos': 829, 'ref_base': 'T', 'alt_base': 'A', 'aa_pos': 277, 'aa_change': 'F>Y'},
+        {'cdna_pos': 852, 'ref_base': 'G', 'alt_base': 'A', 'aa_pos': 285, 'aa_change': 'A>T'},
+        {'cdna_pos': 925, 'ref_base': 'T', 'alt_base': 'A', 'aa_pos': 309, 'aa_change': 'F>Y'}
+    ]
+    
+    results = []
+    
+    # Debug info
+    logging.debug(f"Reference sequence length: {len(ref_seq)}")
+    logging.debug(f"Alignment region: {alignment_dict['ref_start']}-{alignment_dict['ref_end']}")
+    logging.debug(f"CIGAR string: {alignment_dict['cigar']}")
+    
+    for var in variants:
+        # Convert cDNA position to reference position
+        try:
+            ref_pos = query_to_ref_pos(
+                var['cdna_pos'], 
+                alignment_dict['cigar'],
+                query_start=alignment_dict['query_start'],
+                ref_start=alignment_dict['ref_start']
+            )
+            
+            logging.debug(f"Processing variant at cDNA pos {var['cdna_pos']}:")
+            logging.debug(f"Converted to reference pos: {ref_pos}")
+            
+            # Check if position is valid
+            if ref_pos >= len(ref_seq):
+                logging.warning(f"Position {ref_pos} is beyond reference sequence length {len(ref_seq)}")
+                continue
+                
+            # Get the base at this position
+            observed_base = ref_seq[ref_pos]
+            
+            result = {
+                'cdna_pos': var['cdna_pos'],
+                'ref_pos': ref_pos,
+                'expected_mw': var['ref_base'],
+                'expected_lw': var['alt_base'],
+                'observed': observed_base,
+                'aa_pos': var['aa_pos'],
+                'aa_change': var['aa_change'],
+                'is_lw': observed_base == var['alt_base'],
+                'is_mw': observed_base == var['ref_base']
+            }
+            results.append(result)
+            
+        except ValueError as e:
+            logging.error(f"Could not map position {var['cdna_pos']}: {str(e)}")
+            
+    return results
+
+def get_alignment_sequence(alignment: dict, ref_seq: str, query_seq: str) -> str:
+    """
+    Get formatted pairwise alignment for an alignment result.
+    
+    Args:
+        alignment: Dictionary containing alignment information
+        ref_seq: Full reference sequence
+        query_seq: Full query sequence
+        
+    Returns:
+        Formatted alignment string
+    """
+    return format_pairwise_alignment(
+        query_seq=query_seq,
+        ref_seq=ref_seq,
+        cigar=alignment['cigar'],
+        query_start=alignment['query_start'],
+        ref_start=alignment['ref_start']
+    )
+
+def read_ref_sequence(fasta_path: str) -> str:
+    """
+    Read sequence from a FASTA file (supports gzipped files).
+    
+    Args:
+        fasta_path: Path to FASTA file (can be .gz)
+        
+    Returns:
+        String containing the sequence (without header)
+        
+    Raises:
+        FileNotFoundError: If file doesn't exist
+        ValueError: If file is empty or malformed
+    """
+    import gzip
+    
+    try:
+        # Check if file is gzipped
+        is_gzipped = fasta_path.endswith('.gz')
+        opener = gzip.open if is_gzipped else open
+        
+        with opener(fasta_path, 'rt') as f:
+            sequence = ''
+            header_found = False
+            
+            for line in f:
+                line = line.strip()
+                if not line:  # Skip empty lines
+                    continue
+                    
+                if line.startswith('>'):
+                    if not header_found:
+                        header_found = True
+                        continue
+                    else:
+                        break  # Stop at second header if multiple sequences
+                else:
+                    if not header_found:
+                        raise ValueError("FASTA file must start with '>'")
+                    sequence += line
+                    
+            if not sequence:
+                raise ValueError("No sequence found in FASTA file")
+                
+            return sequence
+            
+    except FileNotFoundError:
+        raise FileNotFoundError(f"FASTA file not found: {fasta_path}")
+    except Exception as e:
+        raise ValueError(f"Error reading FASTA file {fasta_path}: {str(e)}")
 
 def main(reference_path: str, query_path: str, output_prefix: Optional[str] = None):
     """
@@ -114,6 +433,10 @@ def main(reference_path: str, query_path: str, output_prefix: Optional[str] = No
         # Perform alignment
         results = align_sequences(reference_path, query_path)
         
+        # Read sequences
+        ref_seq = read_ref_sequence(reference_path)
+        query_seq = read_ref_sequence(query_path)
+        
         # Format results
         formatted_output = format_alignment_results(results)
         
@@ -121,6 +444,13 @@ def main(reference_path: str, query_path: str, output_prefix: Optional[str] = No
         if output_prefix:
             with open(output_prefix + '.alignments.txt', 'w') as f:
                 f.write(formatted_output)
+                f.write("\n\nDetailed Alignments:\n")
+                f.write("===================\n\n")
+                for aln in results:
+                    f.write(f"Alignment for {aln['query_name']} to {aln['reference_name']}:\n")
+                    f.write(get_alignment_sequence(aln, ref_seq, query_seq))
+                    f.write("\n" + "=" * 80 + "\n\n")
+                    
             logging.info(f"Results written to {output_prefix}.alignments.txt")
             write_bed_file(results, output_prefix)
         else:

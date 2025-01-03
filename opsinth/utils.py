@@ -225,3 +225,97 @@ def configure_logging(verbosity=0):
     logging.getLogger('matplotlib.font_manager').disabled = True
     
     logging.debug(f"Logging level set to: {logging.getLevelName(level)}")
+
+def query_to_ref_pos(query_pos: int, cigar: str, query_start: int = 0, ref_start: int = 0) -> int:
+    """
+    Convert a query position to a reference position using a CIGAR string.
+    
+    Args:
+        query_pos: Position in query sequence
+        cigar: CIGAR string (e.g., "100M2D50M")
+        query_start: Start position in query (default: 0)
+        ref_start: Start position in reference (default: 0)
+        
+    Returns:
+        Corresponding position in reference sequence
+        
+    Example:
+        query_to_ref_pos(120, "100M2D50M") -> 122
+        # Because after 100M there's a 2D, shifting reference position by 2
+    """
+    if query_pos < query_start:
+        raise ValueError(f"Query position {query_pos} is before query start {query_start}")
+    
+    # Parse CIGAR string into operations and lengths
+    import re
+    cigar_ops = re.findall(r'(\d+)([MIDNSHP=X])', cigar)
+    
+    curr_query = query_start
+    curr_ref = ref_start
+    
+    for length, op in cigar_ops:
+        length = int(length)
+        
+        if op in 'M=X':  # Match or mismatch
+            if query_pos <= curr_query + length:
+                return curr_ref + (query_pos - curr_query)
+            curr_query += length
+            curr_ref += length
+        elif op == 'I':  # Insertion to reference
+            if query_pos <= curr_query + length:
+                return curr_ref
+            curr_query += length
+        elif op == 'D':  # Deletion from reference
+            curr_ref += length
+        elif op == 'S':  # Soft clipping
+            if query_pos <= curr_query + length:
+                return curr_ref
+            curr_query += length
+            
+    raise ValueError(f"Query position {query_pos} is beyond the aligned region")
+
+def ref_to_query_pos(ref_pos: int, cigar: str, query_start: int = 0, ref_start: int = 0) -> int:
+    """
+    Convert a reference position to a query position using a CIGAR string.
+    
+    Args:
+        ref_pos: Position in reference sequence
+        cigar: CIGAR string (e.g., "100M2D50M")
+        query_start: Start position in query (default: 0)
+        ref_start: Start position in reference (default: 0)
+        
+    Returns:
+        Corresponding position in query sequence
+        
+    Example:
+        ref_to_query_pos(122, "100M2D50M") -> 120
+        # Because after 100M there's a 2D, shifting query position by -2
+    """
+    if ref_pos < ref_start:
+        raise ValueError(f"Reference position {ref_pos} is before reference start {ref_start}")
+    
+    # Parse CIGAR string into operations and lengths
+    import re
+    cigar_ops = re.findall(r'(\d+)([MIDNSHP=X])', cigar)
+    
+    curr_query = query_start
+    curr_ref = ref_start
+    
+    for length, op in cigar_ops:
+        length = int(length)
+        
+        if op in 'M=X':  # Match or mismatch
+            if ref_pos <= curr_ref + length:
+                return curr_query + (ref_pos - curr_ref)
+            curr_query += length
+            curr_ref += length
+        elif op == 'I':  # Insertion to reference
+            curr_query += length
+        elif op == 'D':  # Deletion from reference
+            if ref_pos <= curr_ref + length:
+                return curr_query
+            curr_ref += length
+        elif op == 'S':  # Soft clipping
+            curr_query += length
+            
+    raise ValueError(f"Reference position {ref_pos} is beyond the aligned region")
