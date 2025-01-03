@@ -2,6 +2,7 @@ import mappy as mp
 import logging
 from pathlib import Path
 from typing import List, Tuple, Optional
+from opsinth.utils import *
 
 def align_sequences(reference_path: str, query_path: str, preset: str = "map-ont") -> List[dict]:
     """
@@ -108,71 +109,7 @@ def write_bed_file(results: List[dict], output_prefix: str):
     
     logging.info(f"BED file written to {bed_path}")
 
-def convert_coordinate(pos: int, cigar: str, direction: str = "query_to_ref", 
-                      query_start: int = 0, ref_start: int = 0) -> int:
-    """
-    Convert coordinates between query and reference positions using a CIGAR string.
-    Handles spliced alignments (N in CIGAR).
-    """
-    if direction not in ["query_to_ref", "ref_to_query"]:
-        raise ValueError("direction must be either 'query_to_ref' or 'ref_to_query'")
-        
-    # Check if position is before start
-    start_pos = query_start if direction == "query_to_ref" else ref_start
-    if pos < start_pos:
-        raise ValueError(f"Position {pos} is before start position {start_pos}")
-    
-    # Parse CIGAR string
-    import re
-    cigar_ops = re.findall(r'(\d+)([MIDNSHP=X])', cigar)
-    
-    curr_query = query_start
-    curr_ref = ref_start
-    
-    for length, op in cigar_ops:
-        length = int(length)
-        
-        if op in 'M=X':  # Match or mismatch
-            if direction == "query_to_ref":
-                if pos <= curr_query + length:
-                    return curr_ref + (pos - curr_query)
-            else:  # ref_to_query
-                if pos <= curr_ref + length:
-                    return curr_query + (pos - curr_ref)
-            curr_query += length
-            curr_ref += length
-            
-        elif op == 'I':  # Insertion to reference
-            if direction == "query_to_ref":
-                if pos <= curr_query + length:
-                    return curr_ref
-            curr_query += length
-            
-        elif op == 'D':  # Deletion from reference
-            if direction == "ref_to_query":
-                if pos <= curr_ref + length:
-                    return curr_query
-            curr_ref += length
-            
-        elif op == 'N':  # Skipped region/intron
-            curr_ref += length  # Only advance reference position
-            
-        elif op == 'S':  # Soft clipping
-            if direction == "query_to_ref":
-                if pos <= curr_query + length:
-                    return curr_ref
-            curr_query += length
-            
-    raise ValueError(f"Position {pos} is beyond the aligned region")
 
-# Wrapper functions for backward compatibility
-def query_to_ref_pos(query_pos: int, cigar: str, query_start: int = 0, ref_start: int = 0) -> int:
-    """Convert query position to reference position"""
-    return convert_coordinate(query_pos, cigar, "query_to_ref", query_start, ref_start)
-
-def ref_to_query_pos(ref_pos: int, cigar: str, query_start: int = 0, ref_start: int = 0) -> int:
-    """Convert reference position to query position"""
-    return convert_coordinate(ref_pos, cigar, "ref_to_query", query_start, ref_start)
 
 def format_pairwise_alignment(query_seq: str, ref_seq: str, cigar: str, 
                             query_start: int = 0, ref_start: int = 0,
@@ -363,57 +300,6 @@ def get_alignment_sequence(alignment: dict, ref_seq: str, query_seq: str) -> str
         ref_start=alignment['ref_start']
     )
 
-def read_ref_sequence(fasta_path: str) -> str:
-    """
-    Read sequence from a FASTA file (supports gzipped files).
-    
-    Args:
-        fasta_path: Path to FASTA file (can be .gz)
-        
-    Returns:
-        String containing the sequence (without header)
-        
-    Raises:
-        FileNotFoundError: If file doesn't exist
-        ValueError: If file is empty or malformed
-    """
-    import gzip
-    
-    try:
-        # Check if file is gzipped
-        is_gzipped = fasta_path.endswith('.gz')
-        opener = gzip.open if is_gzipped else open
-        
-        with opener(fasta_path, 'rt') as f:
-            sequence = ''
-            header_found = False
-            
-            for line in f:
-                line = line.strip()
-                if not line:  # Skip empty lines
-                    continue
-                    
-                if line.startswith('>'):
-                    if not header_found:
-                        header_found = True
-                        continue
-                    else:
-                        break  # Stop at second header if multiple sequences
-                else:
-                    if not header_found:
-                        raise ValueError("FASTA file must start with '>'")
-                    sequence += line
-                    
-            if not sequence:
-                raise ValueError("No sequence found in FASTA file")
-                
-            return sequence
-            
-    except FileNotFoundError:
-        raise FileNotFoundError(f"FASTA file not found: {fasta_path}")
-    except Exception as e:
-        raise ValueError(f"Error reading FASTA file {fasta_path}: {str(e)}")
-
 def main(reference_path: str, query_path: str, output_prefix: Optional[str] = None):
     """
     Main function to run sequence alignment and output results.
@@ -434,8 +320,8 @@ def main(reference_path: str, query_path: str, output_prefix: Optional[str] = No
         results = align_sequences(reference_path, query_path)
         
         # Read sequences
-        ref_seq = read_ref_sequence(reference_path)
-        query_seq = read_ref_sequence(query_path)
+        ref_seq = read_fasta_seq(reference_path)
+        query_seq = read_fasta_seq(query_path)
         
         # Format results
         formatted_output = format_alignment_results(results)

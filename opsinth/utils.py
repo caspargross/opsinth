@@ -46,6 +46,57 @@ def read_bam_file(bam_path, roi):
     b.close()
     return reads
 
+def read_fasta_seq(fasta_path: str) -> str:
+    """
+    Read sequence from a FASTA file (supports gzipped files).
+    
+    Args:
+        fasta_path: Path to FASTA file (can be .gz)
+        
+    Returns:
+        String containing the sequence (without header)
+        
+    Raises:
+        FileNotFoundError: If file doesn't exist
+        ValueError: If file is empty or malformed
+    """
+    import gzip
+    
+    try:
+        # Check if file is gzipped
+        is_gzipped = fasta_path.endswith('.gz')
+        opener = gzip.open if is_gzipped else open
+        
+        with opener(fasta_path, 'rt') as f:
+            sequence = ''
+            header_found = False
+            
+            for line in f:
+                line = line.strip()
+                if not line:  # Skip empty lines
+                    continue
+                    
+                if line.startswith('>'):
+                    if not header_found:
+                        header_found = True
+                        continue
+                    else:
+                        break  # Stop at second header if multiple sequences
+                else:
+                    if not header_found:
+                        raise ValueError("FASTA file must start with '>'")
+                    sequence += line
+                    
+            if not sequence:
+                raise ValueError("No sequence found in FASTA file")
+                
+            return sequence
+            
+    except FileNotFoundError:
+        raise FileNotFoundError(f"FASTA file not found: {fasta_path}")
+    except Exception as e:
+        raise ValueError(f"Error reading FASTA file {fasta_path}: {str(e)}")
+
 def reverse_cigar(cigarstring):
     cigar_instructions = []
     n = ""
@@ -226,27 +277,21 @@ def configure_logging(verbosity=0):
     
     logging.debug(f"Logging level set to: {logging.getLevelName(level)}")
 
-def query_to_ref_pos(query_pos: int, cigar: str, query_start: int = 0, ref_start: int = 0) -> int:
+def convert_coordinate(pos: int, cigar: str, direction: str = "query_to_ref", 
+                      query_start: int = 0, ref_start: int = 0) -> int:
     """
-    Convert a query position to a reference position using a CIGAR string.
-    
-    Args:
-        query_pos: Position in query sequence
-        cigar: CIGAR string (e.g., "100M2D50M")
-        query_start: Start position in query (default: 0)
-        ref_start: Start position in reference (default: 0)
-        
-    Returns:
-        Corresponding position in reference sequence
-        
-    Example:
-        query_to_ref_pos(120, "100M2D50M") -> 122
-        # Because after 100M there's a 2D, shifting reference position by 2
+    Convert coordinates between query and reference positions using a CIGAR string.
+    Handles spliced alignments (N in CIGAR).
     """
-    if query_pos < query_start:
-        raise ValueError(f"Query position {query_pos} is before query start {query_start}")
+    if direction not in ["query_to_ref", "ref_to_query"]:
+        raise ValueError("direction must be either 'query_to_ref' or 'ref_to_query'")
+        
+    # Check if position is before start
+    start_pos = query_start if direction == "query_to_ref" else ref_start
+    if pos < start_pos:
+        raise ValueError(f"Position {pos} is before start position {start_pos}")
     
-    # Parse CIGAR string into operations and lengths
+    # Parse CIGAR string
     import re
     cigar_ops = re.findall(r'(\d+)([MIDNSHP=X])', cigar)
     
@@ -257,65 +302,44 @@ def query_to_ref_pos(query_pos: int, cigar: str, query_start: int = 0, ref_start
         length = int(length)
         
         if op in 'M=X':  # Match or mismatch
-            if query_pos <= curr_query + length:
-                return curr_ref + (query_pos - curr_query)
+            if direction == "query_to_ref":
+                if pos <= curr_query + length:
+                    return curr_ref + (pos - curr_query)
+            else:  # ref_to_query
+                if pos <= curr_ref + length:
+                    return curr_query + (pos - curr_ref)
             curr_query += length
             curr_ref += length
+            
         elif op == 'I':  # Insertion to reference
-            if query_pos <= curr_query + length:
-                return curr_ref
-            curr_query += length
-        elif op == 'D':  # Deletion from reference
-            curr_ref += length
-        elif op == 'S':  # Soft clipping
-            if query_pos <= curr_query + length:
-                return curr_ref
+            if direction == "query_to_ref":
+                if pos <= curr_query + length:
+                    return curr_ref
             curr_query += length
             
-    raise ValueError(f"Query position {query_pos} is beyond the aligned region")
+        elif op == 'D':  # Deletion from reference
+            if direction == "ref_to_query":
+                if pos <= curr_ref + length:
+                    return curr_query
+            curr_ref += length
+            
+        elif op == 'N':  # Skipped region/intron
+            curr_ref += length  # Only advance reference position
+            
+        elif op == 'S':  # Soft clipping
+            if direction == "query_to_ref":
+                if pos <= curr_query + length:
+                    return curr_ref
+            curr_query += length
+            
+    raise ValueError(f"Position {pos} is beyond the aligned region")
+
+# Wrapper functions for backward compatibility
+def query_to_ref_pos(query_pos: int, cigar: str, query_start: int = 0, ref_start: int = 0) -> int:
+    """Convert query position to reference position"""
+    return convert_coordinate(query_pos, cigar, "query_to_ref", query_start, ref_start)
 
 def ref_to_query_pos(ref_pos: int, cigar: str, query_start: int = 0, ref_start: int = 0) -> int:
-    """
-    Convert a reference position to a query position using a CIGAR string.
-    
-    Args:
-        ref_pos: Position in reference sequence
-        cigar: CIGAR string (e.g., "100M2D50M")
-        query_start: Start position in query (default: 0)
-        ref_start: Start position in reference (default: 0)
-        
-    Returns:
-        Corresponding position in query sequence
-        
-    Example:
-        ref_to_query_pos(122, "100M2D50M") -> 120
-        # Because after 100M there's a 2D, shifting query position by -2
-    """
-    if ref_pos < ref_start:
-        raise ValueError(f"Reference position {ref_pos} is before reference start {ref_start}")
-    
-    # Parse CIGAR string into operations and lengths
-    import re
-    cigar_ops = re.findall(r'(\d+)([MIDNSHP=X])', cigar)
-    
-    curr_query = query_start
-    curr_ref = ref_start
-    
-    for length, op in cigar_ops:
-        length = int(length)
-        
-        if op in 'M=X':  # Match or mismatch
-            if ref_pos <= curr_ref + length:
-                return curr_query + (ref_pos - curr_ref)
-            curr_query += length
-            curr_ref += length
-        elif op == 'I':  # Insertion to reference
-            curr_query += length
-        elif op == 'D':  # Deletion from reference
-            if ref_pos <= curr_ref + length:
-                return curr_query
-            curr_ref += length
-        elif op == 'S':  # Soft clipping
-            curr_query += length
-            
-    raise ValueError(f"Reference position {ref_pos} is beyond the aligned region")
+    """Convert reference position to query position"""
+    return convert_coordinate(ref_pos, cigar, "ref_to_query", query_start, ref_start)
+
