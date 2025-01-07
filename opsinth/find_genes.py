@@ -216,62 +216,165 @@ def format_pairwise_alignment(query_seq: str, ref_seq: str, cigar: str,
     return "\n".join(output)
 
 
-def find_opsin_variants(alignment_dict, ref_seq):
+# Define variant sets
+OPSIN_COLOR_VARIANTS = [
+    {
+        'cdna_pos': 829, 
+        'ref_base': 'T',  # MW (Green)
+        'alt_base': 'A',  # LW (Red)
+        'aa_pos': 277, 
+        'aa_change': 'F>Y',
+        'ref_type': 'MW',
+        'alt_type': 'LW'
+    },
+    {
+        'cdna_pos': 852, 
+        'ref_base': 'G',  # MW
+        'alt_base': 'A',  # LW
+        'aa_pos': 285, 
+        'aa_change': 'A>T',
+        'ref_type': 'MW',
+        'alt_type': 'LW'
+    },
+    {
+        'cdna_pos': 925, 
+        'ref_base': 'T',  # MW
+        'alt_base': 'A',  # LW
+        'aa_pos': 309, 
+        'aa_change': 'F>Y',
+        'ref_type': 'MW',
+        'alt_type': 'LW'
+    }
+]
+
+# Exon 3 splicing variants
+OPSIN_SPLICING_VARIANTS = [
+    {
+        'cdna_pos': 452,  # Position p.151 (was 453)
+        'ref_base': 'G',  # R/R
+        'alt_base': 'A',
+        'aa_pos': 151,
+        'aa_change': 'R>R',
+        'ref_type': ' ',
+        'alt_type': ' '
+    },
+    {
+        'cdna_pos': 456,  # Position p.153 (was 457)
+        'ref_base': 'C',  # L/M
+        'alt_base': 'A',
+        'aa_pos': 153,
+        'aa_change': 'L>M',
+        'ref_type': 'L',
+        'alt_type': 'M'
+    },
+    {
+        'cdna_pos': 464,  # Position p.155 (was 465)
+        'ref_base': 'G',  # V/V
+        'alt_base': 'C',
+        'aa_pos': 155,
+        'aa_change': 'V>V',
+        'ref_type': ' ',
+        'alt_type': ' '
+    },
+    {
+        'cdna_pos': 510,  # Position p.171 (was 511)
+        'ref_base': 'A',  # I/V
+        'alt_base': 'G',
+        'aa_pos': 171,
+        'aa_change': 'I>V',
+        'ref_type': 'I',
+        'alt_type': 'V'
+    },
+    {
+        'cdna_pos': 512,  # Also Position p.171 (was 513)
+        'ref_base': 'T',  # I/V (second nucleotide)
+        'alt_base': 'G',
+        'aa_pos': 171,
+        'aa_change': 'I>V',
+        'ref_type': 'I',
+        'alt_type': 'V'
+    },
+    {
+        'cdna_pos': 520,  # Position p.174 (was 521)
+        'ref_base': 'C',  # A/V
+        'alt_base': 'T',
+        'aa_pos': 174,
+        'aa_change': 'A>V',
+        'ref_type': 'A',
+        'alt_type': 'V'
+    },
+    {
+        'cdna_pos': 531,  # Position p.178 (was 532)
+        'ref_base': 'A',  # I/V
+        'alt_base': 'G',
+        'aa_pos': 178,
+        'aa_change': 'I>V',
+        'ref_type': 'I',
+        'alt_type': 'V'
+    },
+    {
+        'cdna_pos': 537,  # Position p.180 (was 538)
+        'ref_base': 'T',  # S/A
+        'alt_base': 'G',
+        'aa_pos': 180,
+        'aa_change': 'S>A',
+        'ref_type': 'S',
+        'alt_type': 'A'
+    }
+]
+
+def find_variants(alignment_dict: dict, ref_seq: str, variants: list) -> list:
     """
-    Find the three key variants that distinguish OPN1MW from OPN1LW.
+    Find variants in an aligned sequence.
     
     Args:
         alignment_dict: Dictionary containing alignment information
         ref_seq: Reference sequence to compare against
+        variants: List of variant dictionaries
         
     Returns:
-        Dictionary with variant information for each position
+        List of dictionaries with variant information
     """
-    # Key positions in cDNA coordinates
-    variants = [
-        {'cdna_pos': 829, 'ref_base': 'T', 'alt_base': 'A', 'aa_pos': 277, 'aa_change': 'F>Y'},
-        {'cdna_pos': 852, 'ref_base': 'G', 'alt_base': 'A', 'aa_pos': 285, 'aa_change': 'A>T'},
-        {'cdna_pos': 925, 'ref_base': 'T', 'alt_base': 'A', 'aa_pos': 309, 'aa_change': 'F>Y'}
-    ]
-    
     results = []
     
-    # Debug info
     logging.debug(f"Reference sequence length: {len(ref_seq)}")
     logging.debug(f"Alignment region: {alignment_dict['ref_start']}-{alignment_dict['ref_end']}")
     logging.debug(f"CIGAR string: {alignment_dict['cigar']}")
     
     for var in variants:
-        # Convert cDNA position to reference position
         try:
+            # Get reference position (0-based)
             ref_pos = query_to_ref_pos(
-                var['cdna_pos'], 
+                var['cdna_pos'] - 1,  # Convert to 0-based coordinate
                 alignment_dict['cigar'],
                 query_start=alignment_dict['query_start'],
                 ref_start=alignment_dict['ref_start']
             )
             
+            # Add 1 to get correct base
+            ref_pos = ref_pos + 1
+            
             logging.debug(f"Processing variant at cDNA pos {var['cdna_pos']}:")
             logging.debug(f"Converted to reference pos: {ref_pos}")
             
-            # Check if position is valid
             if ref_pos >= len(ref_seq):
                 logging.warning(f"Position {ref_pos} is beyond reference sequence length {len(ref_seq)}")
                 continue
                 
-            # Get the base at this position
             observed_base = ref_seq[ref_pos]
             
             result = {
                 'cdna_pos': var['cdna_pos'],
                 'ref_pos': ref_pos,
-                'expected_mw': var['ref_base'],
-                'expected_lw': var['alt_base'],
+                'expected_ref': var['ref_base'],
+                'expected_alt': var['alt_base'],
                 'observed': observed_base,
                 'aa_pos': var['aa_pos'],
                 'aa_change': var['aa_change'],
-                'is_lw': observed_base == var['alt_base'],
-                'is_mw': observed_base == var['ref_base']
+                'is_alt': observed_base == var['alt_base'],
+                'is_ref': observed_base == var['ref_base'],
+                'ref_type': var['ref_type'],
+                'alt_type': var['alt_type']
             }
             results.append(result)
             
