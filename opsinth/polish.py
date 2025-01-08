@@ -2,9 +2,9 @@ import os
 import subprocess
 import logging
 from opsinth.utils import *
-from opsinth.analysis import *
+from opsinth.analysis_sequence import *
 
-def run_polish_denovo(results, out_prefix, n_polish_rounds=4, delete_intermediate_files=True):
+def run_polish_denovo(results, out_prefix, n_polish_rounds=6, delete_intermediate_files=True):
     
     logging.info(f"Start {n_polish_rounds} rounds of polishing")
 

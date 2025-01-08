@@ -4,7 +4,9 @@ import edlib
 from collections import Counter
 from opsinth.utils import *
 
-def read_files(bam_path, bed_path, ref_path, anchors_path):
+def run_ref_analysis(bam_path, bed_path, ref_path, anchors_path):
+    
+    logging.info("Start analysis on reference")
     
     logging.info("Start reading input files")
 
@@ -15,25 +17,6 @@ def read_files(bam_path, bed_path, ref_path, anchors_path):
     reads = read_bam_file(bam_path, roi)
     
     logging.info("Finished reading input files")
-
-    # Additional analysis logic can be added here
-    return {
-        'bam': bam,
-        'roi': roi,
-        'seq_ref': seq_ref,
-        'anchors': anchors,
-        'reads': reads
-    }
-
-def run_ref_analysis(**kwargs):
-    
-    logging.info("Start analysis on reference")
-    
-    bam = kwargs.get('bam')
-    roi = kwargs.get('roi')
-    anchors = kwargs.get('anchors')
-    reads = kwargs.get('reads')
-    seq_ref = kwargs.get('seq_ref')
     
     # Align anchors to reference sequence
     anchors_on_ref = align_anchors_to_ref(anchors, seq_ref)

@@ -1,8 +1,8 @@
 # opsin_analysis/main.py
 import argparse
 from opsinth.utils import *
-from opsinth.analysis import *
-from opsinth.plotting import *
+from opsinth.analysis_sequence import *
+from opsinth.plots import *
 
 def main():
     parser = argparse.ArgumentParser(description="Opsin Analysis CLI")

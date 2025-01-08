@@ -14,9 +14,10 @@ setup(
     packages=find_packages(),
     install_requires=[
         'pysam',
-        'edlib'
+        'edlib',
         'matplotlib',
-        'mappy'
+        'mappy',
+        'pyyaml'
     ],
     entry_points={
         'console_scripts': [

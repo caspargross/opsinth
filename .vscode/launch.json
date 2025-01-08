@@ -79,8 +79,8 @@
             "console": "integratedTerminal",
             "args": [
                 "--reference", "tests/out/crispr/opsinth.denovo.polished.fasta",
-                "--query", "data/GRCh38.OPN1LW-201.exons.fa",
-                "--output", "test"
+                "--query", "data/GRCh38.OPN1LW-201.seq.fa",
+                "--output", "test.exon"
             ],
             "justMyCode": true
         }
