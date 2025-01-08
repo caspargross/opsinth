@@ -1,4 +1,7 @@
-def find_variants(alignment_dict: dict, ref_seq: str, variants: list) -> list:
+import logging
+from opsinth.utils import query_to_ref_pos
+
+def genotype_known_variants(alignment_dict: dict, ref_seq: str, variants: list) -> list:
     """
     Find variants in an aligned sequence.
     
@@ -12,15 +15,19 @@ def find_variants(alignment_dict: dict, ref_seq: str, variants: list) -> list:
     """
     results = []
     
-    logging.debug(f"Reference sequence length: {len(ref_seq)}")
-    logging.debug(f"Alignment region: {alignment_dict['ref_start']}-{alignment_dict['ref_end']}")
-    logging.debug(f"CIGAR string: {alignment_dict['cigar']}")
+    logger = logging.getLogger('opsinth.analysis_variants')
+    logger.debug(f"Reference sequence length: {len(ref_seq)}")
+    logger.debug(f"Alignment region: {alignment_dict['ref_start']}-{alignment_dict['ref_end']}")
+    logger.debug(f"CIGAR string: {alignment_dict['cigar']}")
     
     for var in variants:
         try:
+            # Adjust cDNA position based on query start
+            adjusted_cdna_pos = var['cdna_pos'] + alignment_dict['query_start']
+            
             # Get reference position (0-based)
             ref_pos = query_to_ref_pos(
-                var['cdna_pos'] - 1,  # Convert to 0-based coordinate
+                adjusted_cdna_pos - 1,  # Convert to 0-based coordinate
                 alignment_dict['cigar'],
                 query_start=alignment_dict['query_start'],
                 ref_start=alignment_dict['ref_start']
@@ -29,11 +36,11 @@ def find_variants(alignment_dict: dict, ref_seq: str, variants: list) -> list:
             # Add 1 to get correct base
             ref_pos = ref_pos + 1
             
-            logging.debug(f"Processing variant at cDNA pos {var['cdna_pos']}:")
-            logging.debug(f"Converted to reference pos: {ref_pos}")
+            logger.debug(f"Processing variant at cDNA pos {var['cdna_pos']} (adjusted to {adjusted_cdna_pos}):")
+            logger.debug(f"Converted to reference pos: {ref_pos}")
             
             if ref_pos >= len(ref_seq):
-                logging.warning(f"Position {ref_pos} is beyond reference sequence length {len(ref_seq)}")
+                logger.warning(f"Position {ref_pos} is beyond reference sequence length {len(ref_seq)}")
                 continue
                 
             observed_base = ref_seq[ref_pos]
@@ -54,6 +61,34 @@ def find_variants(alignment_dict: dict, ref_seq: str, variants: list) -> list:
             results.append(result)
             
         except ValueError as e:
-            logging.error(f"Could not map position {var['cdna_pos']}: {str(e)}")
+            logger.error(f"Could not map position {var['cdna_pos']}: {str(e)}")
             
     return results
+
+def format_variant_classification(variants: list) -> str:
+    """
+    Format variant results as a readable table.
+    
+    Args:
+        variants: List of variant dictionaries from genotype_known_variants
+        
+    Returns:
+        Formatted string containing the variant table
+    """
+    if not variants:
+        return "No variants found"
+        
+    lines = []
+    lines.append("\nVariant Analysis:")
+    lines.append("Pos cDNA | Pos Ref | AA Change | Expected(Ref/Alt) | Observed | Type")
+    lines.append("-" * 70)
+    
+    for var in variants:
+        variant_type = var['ref_type'] if var['is_ref'] else (var['alt_type'] if var['is_alt'] else "Unknown")
+        lines.append(
+            f"cDNA {var['cdna_pos']} |  {var['ref_pos']: >6} | {var['aa_change']}       | "
+            f"{var['expected_ref']}/{var['expected_alt']}               | "
+            f"{var['observed']}        | {variant_type}"
+        )
+    
+    return "\n".join(lines)

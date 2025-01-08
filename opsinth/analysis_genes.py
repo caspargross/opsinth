@@ -2,16 +2,111 @@ import mappy as mp
 import logging
 from pathlib import Path
 from typing import List, Tuple, Optional
+from opsinth.resources import *
 from opsinth.utils import *
-from opsinth.analysis_variants import find_variants
+from opsinth.analysis_variants import genotype_known_variants, format_variant_classification
+from opsinth.resources import *
 
-def align_sequences(reference_path: str, query_path: str, preset: str = "map-ont") -> List[dict]:
+# Create module logger
+logger = logging.getLogger('opsinth.analysis_genes')
+
+def run_find_genes(results, out_prefix):
     """
-    Align sequences using minimap2 and return alignment results.
+    Find and classify OPN1 genes in the polished sequence.
     
     Args:
-        reference_path: Path to reference FASTA file
-        query_path: Path to query FASTA file
+        results: Dictionary containing analysis results including polished sequence
+        out_prefix: Prefix for output files
+        
+    Returns:
+        List of dictionaries containing genotyped alignments
+    """
+    logger.info("Starting OPN1 gene analysis")
+    
+    # Check if polished sequence exists
+    if 'seq_polished' not in results:
+        logger.error("No polished sequence found in results")
+        return []
+    
+    # Write polished sequence to FASTA
+    polished_fasta = Path(f"{out_prefix}.polished.fasta")
+    with open(polished_fasta, 'w') as f:
+        f.write(f">polished_sequence\n{results['seq_polished']}\n")
+    logger.info(f"Wrote polished sequence to {polished_fasta}")
+    
+    # Get sequences
+    seq = results.get('seq_polished')
+    logger.info("Reading reference sequences")
+    opn1mw_seq = read_fasta_seq(OPN1MW_REF)
+    opn1lw_seq = read_fasta_seq(OPN1LW_REF)
+
+    # Align sequences
+    logger.info("Aligning OPN1MW reference")
+    aln_opn1mw = align_sequences(str(polished_fasta), OPN1MW_REF, preset="splice:hq")
+    logger.info("Aligning OPN1LW reference")
+    aln_opn1lw = align_sequences(str(polished_fasta), OPN1LW_REF, preset="splice:hq")
+
+    # Filter alignments
+    aln_opn1mw_filtered = filter_alignments(aln_opn1mw)
+    aln_opn1lw_filtered = filter_alignments(aln_opn1lw)
+
+    logger.info(f"Found {len(aln_opn1mw_filtered)} MW and {len(aln_opn1lw_filtered)} LW alignments")
+
+    # Analyze variants
+    genotyped_alignments = []
+    
+    # Process MW alignments
+    for aln in aln_opn1mw_filtered:
+        logger.info(f"\nAnalyzing MW alignment {aln['id']} ({aln['ref_start']}-{aln['ref_end']})")
+        
+        # Analyze exon 5 color-determining variants
+        logger.info("Analyzing exon 5 color-determining variants")
+        exon5_vars = genotype_known_variants(aln, seq, OPSIN_EXON5_COLOR_VARIANTS)
+        logger.info(format_variant_classification(exon5_vars))
+        
+        # Analyze exon 3 splicing variants
+        logger.info("Analyzing exon 3 splicing variants")
+        exon3_vars = genotype_known_variants(aln, seq, OPSIN_EXON3_SPLICING_VARIANTS)
+        logger.info(format_variant_classification(exon3_vars))
+
+        genotyped_alignments.append({
+            'alignment': aln,
+            'type': 'MW',
+            'exon5_variants': exon5_vars,
+            'exon3_variants': exon3_vars
+        })
+    
+    # Process LW alignments
+    for aln in aln_opn1lw_filtered:
+        logger.info(f"\nAnalyzing LW alignment {aln['id']} ({aln['ref_start']}-{aln['ref_end']})")
+        
+        # Analyze exon 5 color-determining variants
+        logger.info("Analyzing exon 5 color-determining variants")
+        exon5_vars = genotype_known_variants(aln, seq, OPSIN_EXON5_COLOR_VARIANTS)
+        logger.info(format_variant_classification(exon5_vars))
+        
+        # Analyze exon 3 splicing variants
+        logger.info("Analyzing exon 3 splicing variants")
+        exon3_vars = genotype_known_variants(aln, seq, OPSIN_EXON3_SPLICING_VARIANTS)
+        logger.info(format_variant_classification(exon3_vars))
+
+        genotyped_alignments.append({
+            'alignment': aln,
+            'type': 'LW',
+            'exon5_variants': exon5_vars,
+            'exon3_variants': exon3_vars
+        })
+
+    logger.info(f"Completed analysis of {len(genotyped_alignments)} alignments")
+    return genotyped_alignments
+
+def align_sequences(reference: str | Path, query: str | Path, preset: str = "map-ont") -> List[dict]:
+    """
+    Align sequences using minimap2. Can handle both file paths and sequences directly.
+    
+    Args:
+        reference: Either path to reference FASTA file or nucleotide sequence
+        query: Either path to query FASTA file or nucleotide sequence
         preset: Minimap2 preset (default: map-ont)
         
     Returns:
@@ -30,15 +125,19 @@ def align_sequences(reference_path: str, query_path: str, preset: str = "map-ont
         }
     """
     try:
-        # Create aligner object with eqx flag (0x4000000)
-        aligner = mp.Aligner(reference_path, preset=preset, extra_flags=0x4000000)
+        # Convert paths to strings if they are Path objects
+        reference = str(reference)
+        query = str(query)
+        
+        # Create aligner object with eqx flag
+        aligner = mp.Aligner(reference, preset=preset, extra_flags=0x4000000)
         if not aligner:
             raise Exception("Failed to load reference file")
 
         results = []
         
         # Read query sequences and perform alignment
-        for query_name, seq, qual in mp.fastx_read(query_path):
+        for query_name, seq, qual in mp.fastx_read(query):
             if not seq:
                 continue
                 
@@ -56,12 +155,48 @@ def align_sequences(reference_path: str, query_path: str, preset: str = "map-ont
                     'strand': '-' if hit.strand == -1 else '+',
                     'sequence_identity': hit.mlen / hit.blen if hit.blen > 0 else 0
                 })
-                
+        
         return results
     
     except Exception as e:
         logging.error(f"Error during sequence alignment: {str(e)}")
         raise
+        
+def filter_alignments(alignments: List[dict]) -> List[dict]:
+    """
+    Filter and sort alignments, adding sequential IDs.
+    
+    Args:
+        alignments: List of alignment dictionaries
+        
+    Returns:
+        Filtered and sorted list of alignments with IDs
+    """
+    if not alignments:
+        logging.warning("No alignments to filter")
+        return []
+    
+    # Log the first alignment info for debugging
+    first_aln = alignments[0]
+    logging.info(f"Filtering alignments for {first_aln['query_name']} - {first_aln['reference_name']}")
+    
+    # Filter by sequence identity
+    alignments_filtered = [a for a in alignments if a['sequence_identity'] > 0.9]
+    logging.info(f"Kept {len(alignments_filtered)} alignments of {len(alignments)} after filtering")
+
+    # Sort alignments by reference start position
+    alignments_filtered.sort(key=lambda x: x['ref_start'])
+
+    # Assign sequential IDs
+    for i, alignment in enumerate(alignments_filtered):
+        alignment['id'] = f"opn1_locus_{i + 1:02d}"
+
+    # Log sorted alignments
+    logging.debug("\nSorted alignments with IDs:")
+    for aln in alignments_filtered:
+        logging.debug(f"ID: {aln['id']}, Position: {aln['ref_start']}-{aln['ref_end']}")
+
+    return alignments_filtered
 
 def format_alignment_results(results: List[dict]) -> str:
     """
@@ -282,6 +417,47 @@ def main(reference_path: str, query_path: str, output_prefix: Optional[str] = No
     except Exception as e:
         logging.error(f"Error in main function: {str(e)}")
         raise
+
+def classify_opsin_type(alignment: dict, ref_seq: str) -> dict:
+    """
+    Classify the opsin type based on color-determining variants.
+    
+    Args:
+        alignment: Dictionary containing alignment information
+        ref_seq: Reference sequence
+        
+    Returns:
+        Dictionary containing:
+        - id: Alignment ID
+        - region: Tuple of (start, end) positions
+        - variants: List of variant dictionaries
+        - ref_count: Number of reference (MW) matches
+        - alt_count: Number of alternative (LW) matches
+        - opsin_type: Classification result ("OPN1MW (Green)", "OPN1LW (Red)", or "Undetermined")
+    """
+    variants = genotype_known_variants(alignment, ref_seq, OPSIN_EXON5_COLOR_VARIANTS)
+    
+    ref_count = sum(1 for var in variants if var['is_ref'])
+    alt_count = sum(1 for var in variants if var['is_alt'])
+    
+    # Determine type based on majority of matches
+    if ref_count >= 2:
+        opsin_type = "OPN1MW (Green)"
+    elif alt_count >= 2:
+        opsin_type = "OPN1LW (Red)"
+    else:
+        opsin_type = "Undetermined"
+    
+    return {
+        'id': alignment['id'],
+        'region': (alignment['ref_start'], alignment['ref_end']),
+        'variants': variants,
+        'ref_count': ref_count,
+        'alt_count': alt_count,
+        'opsin_type': opsin_type
+    }
+
+
 
 if __name__ == "__main__":
     import argparse

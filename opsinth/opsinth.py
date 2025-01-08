@@ -6,7 +6,7 @@ import os
 import logging
 from opsinth.analysis_sequence import run_ref_analysis, run_denovo_analysis
 from opsinth.polish import run_polish_denovo
-#from opsinth.analysis_genes import run_find_genes
+from opsinth.analysis_genes import run_find_genes
 from opsinth.plots import *
 from opsinth.utils import configure_logging
 from opsinth.igv_web import create_igv_html, open_igv_viewer
