@@ -1,9 +1,14 @@
 """
-Hardcoded file PATHS
+Default files and references
 """
 
-OPN1MW_REF = "opsinth/resources/GRCh38.OPN1MW.cDNA.fa"
-OPN1LW_REF = "opsinth/resources/GRCh38.OPN1LW.cDNA.fa"
+OPN1MW_REF = "opsinth/resources/OPN1MW.cDNA.GRCh38.fa"
+OPN1LW_REF = "opsinth/resources/OPN1LW.cDNA.GRCh38.fa"
+
+DEFAULT_ANCHORS = "opsinth/resources/anchors.WGS.GRCh38.fa"
+DEFAULT_REF = "opsinth/resources/GRCh38.chrX.roi.fa.gz"
+DEFAULT_BED = "opsinth/resources/OPN1_region.GRCh38.bed"
+DEFAULT_OUT = "opsinth"
 
 """
 Module for handling resource loading and management.

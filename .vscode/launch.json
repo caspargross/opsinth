@@ -30,9 +30,6 @@
             "justMyCode": true,
             "args": [
                 "--bam", "tests/input/aln_opsin_a004_a005.sorted.bam",
-                "--bed", "tests/input/opsin_region.bed",
-                "--ref", "data/grch38.chrX.roi.fa.gz",
-                "--anchors", "data/wgs_anchors.fasta",
                 "--out", "tests/out/wgs/a004_wgs_coords",
                 "--no-igv"
             ]
