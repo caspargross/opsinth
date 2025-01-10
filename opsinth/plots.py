@@ -1,6 +1,7 @@
 # opsin_analysis/plotting.py
 from opsinth.utils import *
 import matplotlib.pyplot as plt
+import numpy as np
 
 def plot_coverage(results, output_prefix):
     logging.info("Starting coverage plot generation")
@@ -78,3 +79,75 @@ def plot_alignment_quality(results, output_prefix):
     plt.xlim(min(matched_query_lengths), max(matched_query_lengths))
     plt.savefig(f"{output_prefix}.alignment_quality_plot.png")
     plt.close()
+
+def plot_polish_stats(polish_stats, output_prefix):
+    """
+    Create two plots showing polishing statistics across racon rounds.
+    
+    Args:
+        results: Dictionary containing polish_stats from run_polish_denovo
+        output_prefix: Prefix for output files
+    """
+    logging.info("Generating polish statistics plots")
+    
+    if not polish_stats:
+        logging.warning("No polish statistics found to plot")
+        return
+        
+    rounds = list(polish_stats.keys())
+    
+    # First plot: Sequence lengths and edit distance
+    plt.figure(figsize=(10, 6))
+    
+    # Create primary y-axis for lengths
+    ax1 = plt.gca()
+    ax1.plot(rounds, [stats['len_unpolished'] for stats in polish_stats.values()], 
+             'b-', label='Unpolished Length', marker='o')
+    ax1.plot(rounds, [stats['len_polished'] for stats in polish_stats.values()], 
+             'g-', label='Polished Length', marker='o')
+    ax1.set_xlabel('Polish Round')
+    ax1.set_ylabel('Sequence Length (bp)', color='k')
+    
+    # Create secondary y-axis for edit distance
+    ax2 = ax1.twinx()
+    ax2.plot(rounds, [stats['edit_distance'] for stats in polish_stats.values()], 
+             'r-', label='Edit Distance', marker='o')
+    ax2.set_ylabel('Edit Distance', color='r')
+    
+    # Combine legends
+    lines1, labels1 = ax1.get_legend_handles_labels()
+    lines2, labels2 = ax2.get_legend_handles_labels()
+    ax1.legend(lines1 + lines2, labels1 + labels2, loc='upper right')
+    
+    plt.title('Sequence Lengths and Edit Distance by Polish Round')
+    plt.tight_layout()
+    plt.savefig(f"{output_prefix}.polish_stats_lengths.png")
+    plt.close()
+    
+    # Second plot: Operation counts
+    plt.figure(figsize=(10, 6))
+    x = np.arange(len(rounds))
+    width = 0.2
+    
+    # Extract operation counts
+    matches = [stats['matches'] for stats in polish_stats.values()]
+    mismatches = [stats['mismatches'] for stats in polish_stats.values()]
+    insertions = [stats['insertions'] for stats in polish_stats.values()]
+    deletions = [stats['deletions'] for stats in polish_stats.values()]
+    
+    # Create bars
+    plt.bar(x - width*1.5, matches, width, label='Matches')
+    plt.bar(x - width/2, mismatches, width, label='Mismatches')
+    plt.bar(x + width/2, insertions, width, label='Insertions')
+    plt.bar(x + width*1.5, deletions, width, label='Deletions')
+    
+    plt.xlabel('Polish Round')
+    plt.ylabel('Count')
+    plt.title('Alignment Errors Fixed')
+    plt.xticks(x, rounds)
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(f"{output_prefix}.polish_stats_operations.png")
+    plt.close()
+    
+    logging.info("Polish statistics plots saved successfully")

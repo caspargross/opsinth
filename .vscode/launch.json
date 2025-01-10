@@ -17,6 +17,7 @@
                 "--ref", "data/grch38.chrX.roi.fa.gz",
                 "--anchors", "data/crispr_anchors.fasta",
                 "--out", "tests/out/crispr/a004",
+                "--racon", "lib/racon",
                 "-v",
                 "--no-igv"
             ]

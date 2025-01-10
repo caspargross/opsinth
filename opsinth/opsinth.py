@@ -16,13 +16,17 @@ class Opsinth:
     def __init__(self):
         self.parser = argparse.ArgumentParser(description="Opsin Analysis CLI")
         self.parser.add_argument('--bam', required=True, help='Path to BAM file')
+        self.parser.add_argument('--out', required=False, help='Output prefix (can be folder)', default = DEFAULT_OUT)
         self.parser.add_argument('--bed', required=False, default=DEFAULT_BED,
                                 help='Path to BED file (default: opsin_region.bed)')
         self.parser.add_argument('--ref', required=False, default=DEFAULT_REF,
                                 help='Path to reference genome (FASTA) (default: grch38 reduced)')
         self.parser.add_argument('--anchors', required=False, default=DEFAULT_ANCHORS,
                                 help='Path to anchors FASTA file (default: wgs_anchors)')
-        self.parser.add_argument('--out', required=False, help='Output prefix (can be folder)', default = DEFAULT_OUT)
+        self.parser.add_argument('--racon', required=False, default="racon",
+                                help='Path to racon executable (default: racon)')
+        self.parser.add_argument('--n_polish_rounds', required=False, default=6,
+                                help='Number of polishing rounds (default: 6)')
         self.parser.add_argument('-v', '--verbose', action='count', default=0,
                                  help='Increase verbosity level (e.g., -v, -vv, -vvv)')
         self.parser.add_argument('--no-igv', action='store_true', help='Do not start IGV.js viewer')
@@ -47,7 +51,7 @@ class Opsinth:
         # Run analysis
         results_ref = run_ref_analysis(args.bam, args.bed, args.ref, args.anchors)
         results_denovo = run_denovo_analysis(results_ref.copy())
-        results_polished = run_polish_denovo(results_denovo.copy(), out_prefix)
+        results_polished = run_polish_denovo(results_denovo.copy(), out_prefix, n_polish_rounds=args.n_polish_rounds, racon_path=args.racon)
         results_genes = run_find_genes(results_polished.copy(), out_prefix)
 
         # Write results_genes to file
@@ -70,7 +74,8 @@ class Opsinth:
         plot_coverage(results_polished, (out_prefix + ".denovo.polished"))
         plot_alignment_quality(results_polished, (out_prefix + ".denovo.polished"))
         write_bam(results_polished.get('reads_aligned'), results_polished.get('reads'), results_polished.get('roi'), (out_prefix + ".denovo.polished"), VERSION)
-    
+        plot_polish_stats(results_polished.get('polish_stats'), out_prefix)
+
         # #if not args.no_igv:
         #     # Convert ROI list to string format for IGV.js
         #     roi_list = dataset.get('roi', [['chrX', 154143438, 154295680]])  # Default values if 'roi' is not set
