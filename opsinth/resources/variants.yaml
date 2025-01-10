@@ -1,4 +1,4 @@
-color_variants:
+exon5_color_variants:
   - cdna_pos: 829
     ref_base: "T"  # MW (Green)
     alt_base: "A"  # LW (Red)
@@ -21,14 +21,14 @@ color_variants:
     ref_type: "MW"
     alt_type: "LW"
 
-splicing_variants:
+exon3_splicing_variants:
   - cdna_pos: 452
     ref_base: "G"  # R/R
     alt_base: "A"
     aa_pos: 151
     aa_change: "R>R"
-    ref_type: " "
-    alt_type: " "
+    ref_type: ""
+    alt_type: ""
   - cdna_pos: 456
     ref_base: "C"  # L/M
     alt_base: "A"
@@ -41,8 +41,8 @@ splicing_variants:
     alt_base: "C"
     aa_pos: 155
     aa_change: "V>V"
-    ref_type: " "
-    alt_type: " "
+    ref_type: ""
+    alt_type: ""
   - cdna_pos: 510
     ref_base: "A"  # I/V
     alt_base: "G"

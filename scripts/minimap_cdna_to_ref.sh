@@ -1,0 +1,1 @@
+./minimap2 -ax splice:hq -uf tests/out/crispr/opsinth.denovo.polished.fasta data/GRCh38.OPN1LW.cDNA.fa > aln.sam  

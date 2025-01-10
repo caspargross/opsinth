@@ -1,7 +1,9 @@
 # opsinth/opsinth.py
+
 import argparse
 import os
 import logging
+import json
 from opsinth.analysis_sequence import run_ref_analysis, run_denovo_analysis
 from opsinth.polish import run_polish_denovo
 from opsinth.analysis_genes import run_find_genes
@@ -47,6 +49,10 @@ class Opsinth:
         results_denovo = run_denovo_analysis(results_ref.copy())
         results_polished = run_polish_denovo(results_denovo.copy(), out_prefix)
         results_genes = run_find_genes(results_polished.copy(), out_prefix)
+
+        # Write results_genes to file
+        with open(out_prefix + ".genes.json", "w") as f:
+            json.dump(results_genes, f, indent=4)
 
         # Plot and write reference results
         plot_coverage(results_ref, (out_prefix + ".ref"))

@@ -54,45 +54,59 @@ def run_find_genes(results, out_prefix):
 
     # Analyze variants
     genotyped_alignments = []
-    
+    opn1lw_counter = 0
+    opn1mw_counter = 0
+
     # Process MW alignments
     for aln in aln_opn1mw_filtered:
         logger.info(f"\nAnalyzing MW alignment {aln['id']} ({aln['ref_start']}-{aln['ref_end']})")
         
+        gene_string = "OPN1"
+        type = ""
+
         # Analyze exon 5 color-determining variants
         logger.info("Analyzing exon 5 color-determining variants")
         exon5_vars = genotype_known_variants(aln, seq, OPSIN_EXON5_COLOR_VARIANTS)
         logger.info(format_variant_classification(exon5_vars))
+        
+        # Determine if the alignment is OPN1MW or OPN1LW
+        ref_count = 0
+        alt_count = 0
+        for var in exon5_vars:
+            if var['is_ref']: ref_count += 1
+            if var['is_alt']: alt_count += 1
+
+        if ref_count >= 2:
+            opn1mw_counter += 1
+            gene_string += "MW"
+            if opn1mw_counter > 1:
+                gene_string += f"{opn1mw_counter}"
+            type = "OPN1MW"
+        elif alt_count >= 2:
+            opn1lw_counter += 1
+            gene_string += "LW"
+            if opn1lw_counter > 1:
+                gene_string += f"{opn1lw_counter}"
+            type = "OPN1LW"
+        else:
+            gene_string += "_undefined"
+            type = "Undetermined"
         
         # Analyze exon 3 splicing variants
         logger.info("Analyzing exon 3 splicing variants")
         exon3_vars = genotype_known_variants(aln, seq, OPSIN_EXON3_SPLICING_VARIANTS)
         logger.info(format_variant_classification(exon3_vars))
 
-        genotyped_alignments.append({
-            'alignment': aln,
-            'type': 'MW',
-            'exon5_variants': exon5_vars,
-            'exon3_variants': exon3_vars
-        })
-    
-    # Process LW alignments
-    for aln in aln_opn1lw_filtered:
-        logger.info(f"\nAnalyzing LW alignment {aln['id']} ({aln['ref_start']}-{aln['ref_end']})")
-        
-        # Analyze exon 5 color-determining variants
-        logger.info("Analyzing exon 5 color-determining variants")
-        exon5_vars = genotype_known_variants(aln, seq, OPSIN_EXON5_COLOR_VARIANTS)
-        logger.info(format_variant_classification(exon5_vars))
-        
-        # Analyze exon 3 splicing variants
-        logger.info("Analyzing exon 3 splicing variants")
-        exon3_vars = genotype_known_variants(aln, seq, OPSIN_EXON3_SPLICING_VARIANTS)
-        logger.info(format_variant_classification(exon3_vars))
+        # Add haplotype name based on AA changes (Neitz) 
+        gene_string += "_"
+        for var in exon3_vars:
+            if var['type'] != "":
+                gene_string += var['type']
 
         genotyped_alignments.append({
             'alignment': aln,
-            'type': 'LW',
+            'type': type,
+            'gene_name': gene_string.replace(" ", ""),
             'exon5_variants': exon5_vars,
             'exon3_variants': exon3_vars
         })

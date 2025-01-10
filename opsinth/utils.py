@@ -251,31 +251,42 @@ def write_fasta(seq, roi, outfile):
         fasta_file.write(seq + "\n")
     logging.info(f"Draft sequence written to {out_prefix}.fasta")   
 
-def configure_logging(verbosity=0):
-    """Configure logging based on verbosity level.
+def configure_logging(verbosity: int = 0):
+    """
+    Configure logging based on verbosity level.
     
     Args:
-        verbosity (int): Verbosity level (0=WARNING, 1=INFO, 2=DEBUG)
+        verbosity: Number of -v flags (0 = WARNING, 1 = INFO, 2 = DEBUG)
     """
-    log_levels = {
-        0: logging.WARNING,  # -v not specified (default)
-        1: logging.INFO,     # -v
-        2: logging.DEBUG,    # -vv
-    }
+    # Force reconfiguration of logging
+    for handler in logging.root.handlers[:]:
+        logging.root.removeHandler(handler)
     
-    # Get the appropriate level or default to WARNING
-    level = log_levels.get(verbosity, logging.DEBUG)
-    
-    # Configure logging
+    # Set log level based on verbosity
+    if verbosity == 0:
+        level = logging.WARNING
+    elif verbosity == 1:
+        level = logging.INFO
+    else:
+        level = logging.DEBUG
+        
+    # Configure logging with more detailed format
     logging.basicConfig(
         level=level,
-        format='%(asctime)s - %(levelname)s - %(message)s'
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S',
+        force=True  # Force reconfiguration
     )
-
-    # Disable matplotlib font logging
-    logging.getLogger('matplotlib.font_manager').disabled = True
     
-    logging.debug(f"Logging level set to: {logging.getLevelName(level)}")
+    # Set levels for specific loggers
+    logging.getLogger('matplotlib').setLevel(logging.WARNING)
+    logging.getLogger('PIL').setLevel(logging.WARNING)
+    
+    # Create a logger for opsinth
+    logger = logging.getLogger('opsinth')
+    logger.setLevel(level)
+    
+    logger.debug(f"Log level set to: {logging.getLevelName(level)}")
 
 def convert_coordinate(pos: int, cigar: str, direction: str = "query_to_ref", 
                       query_start: int = 0, ref_start: int = 0) -> int:

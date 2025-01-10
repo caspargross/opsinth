@@ -44,6 +44,11 @@ def genotype_known_variants(alignment_dict: dict, ref_seq: str, variants: list) 
                 continue
                 
             observed_base = ref_seq[ref_pos]
+            is_alt = observed_base == var['alt_base']
+            is_ref = observed_base == var['ref_base']
+            
+            # Determine the type of variant
+            type = var['ref_type'] if is_ref else (var['alt_type'] if is_alt else "Unknown")
             
             result = {
                 'cdna_pos': var['cdna_pos'],
@@ -53,10 +58,11 @@ def genotype_known_variants(alignment_dict: dict, ref_seq: str, variants: list) 
                 'observed': observed_base,
                 'aa_pos': var['aa_pos'],
                 'aa_change': var['aa_change'],
-                'is_alt': observed_base == var['alt_base'],
-                'is_ref': observed_base == var['ref_base'],
+                'is_alt': is_alt,
+                'is_ref': is_ref,
                 'ref_type': var['ref_type'],
-                'alt_type': var['alt_type']
+                'alt_type': var['alt_type'],
+                'type': type
             }
             results.append(result)
             
