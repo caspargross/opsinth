@@ -2,6 +2,8 @@
 from opsinth.utils import *
 import matplotlib.pyplot as plt
 import numpy as np
+from opsinth.resources import *
+
 
 def plot_coverage(results, output_prefix):
     logging.info("Starting coverage plot generation")
@@ -94,7 +96,7 @@ def plot_polish_stats(polish_stats, output_prefix):
         logging.warning("No polish statistics found to plot")
         return
         
-    rounds = list(polish_stats.keys())
+    rounds = [round + 1 for round in polish_stats.keys()]
     
     # First plot: Sequence lengths and edit distance
     plt.figure(figsize=(10, 6))

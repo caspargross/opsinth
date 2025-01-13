@@ -10,26 +10,36 @@ from opsinth.analysis_genes import run_find_genes
 from opsinth.plots import *
 from opsinth.utils import configure_logging
 from opsinth.igv_web import create_igv_html, open_igv_viewer
-from opsinth.resources import *
+from opsinth.config import DEFAULTS, VARIANTS
 
 class Opsinth:
     def __init__(self):
         self.parser = argparse.ArgumentParser(description="Opsin Analysis CLI")
-        self.parser.add_argument('--bam', required=True, help='Path to BAM file')
-        self.parser.add_argument('--out', required=False, help='Output prefix (can be folder)', default = DEFAULT_OUT)
-        self.parser.add_argument('--bed', required=False, default=DEFAULT_BED,
-                                help='Path to BED file (default: opsin_region.bed)')
-        self.parser.add_argument('--ref', required=False, default=DEFAULT_REF,
-                                help='Path to reference genome (FASTA) (default: grch38 reduced)')
-        self.parser.add_argument('--anchors', required=False, default=DEFAULT_ANCHORS,
-                                help='Path to anchors FASTA file (default: wgs_anchors)')
-        self.parser.add_argument('--racon', required=False, default="racon",
-                                help='Path to racon executable (default: racon)')
-        self.parser.add_argument('--n_polish_rounds', required=False, default=6,
-                                help='Number of polishing rounds (default: 6)')
-        self.parser.add_argument('-v', '--verbose', action='count', default=0,
-                                 help='Increase verbosity level (e.g., -v, -vv, -vvv)')
-        self.parser.add_argument('--no-igv', action='store_true', help='Do not start IGV.js viewer')
+        self.parser.add_argument('--bam', required=True, 
+                               help='Path to BAM file')
+        self.parser.add_argument('--out', required=False, 
+                               default=DEFAULTS['out'],
+                               help='Output prefix (can be folder)')
+        self.parser.add_argument('--bed', required=False, 
+                               default=DEFAULTS['bed'],
+                               help='Path to BED file')
+        self.parser.add_argument('--ref', required=False, 
+                               default=DEFAULTS['ref'],
+                               help='Path to reference genome (FASTA)')
+        self.parser.add_argument('--anchors', required=False, 
+                               default=DEFAULTS['anchors'],
+                               help='Path to anchors FASTA file')
+        self.parser.add_argument('--racon', required=False, 
+                               default=DEFAULTS['racon'],
+                               help='Path to racon executable')
+        self.parser.add_argument('--n_polish_rounds', required=False, 
+                               default=DEFAULTS['n_polish_rounds'],
+                               help='Number of polishing rounds')
+        self.parser.add_argument('-v', '--verbose', action='count', 
+                               default=2,
+                               help='Set verbosity level (e.g., -v, -vv, -vvv) Default: -vv')
+        self.parser.add_argument('--open-igv', action='store_true', 
+                               help='Open IGV.js viewer')
 
 
     def run(self):

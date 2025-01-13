@@ -4,7 +4,7 @@ import logging
 from opsinth.utils import *
 from opsinth.analysis_sequence import *
 from opsinth.plots import *
-def run_polish_denovo(results, out_prefix, racon_path="racon", n_polish_rounds=3, delete_intermediate_files=True):
+def run_polish_denovo(results, out_prefix, racon_path, n_polish_rounds, delete_intermediate_files=True):
     
     logging.info(f"Start {n_polish_rounds} rounds of polishing")
     logging.debug(f"Racon executable: {racon_path}")
@@ -32,7 +32,7 @@ def run_polish_denovo(results, out_prefix, racon_path="racon", n_polish_rounds=3
         logging.debug(f"Running racon with {polish_query_file}, {polish_alignment_file}, {polish_ref_file}")
 
         # Run racon
-        seq_polished = run_racon(polish_query_file, polish_alignment_file, ref_file = polish_ref_file, threads=1, racon_path=racon_path )
+        seq_polished = run_racon(polish_query_file, polish_alignment_file, ref_file = polish_ref_file, racon_path=racon_path, threads=1,  )
 
         # Evaluate sequence improvements in last round
         polish_stats[i] = evaluate_racon_improvement(seq_unpolished, seq_polished)
@@ -72,7 +72,7 @@ def run_polish_denovo(results, out_prefix, racon_path="racon", n_polish_rounds=3
 
     return results
 
-def run_racon(reads_file, sam_file, ref_file, threads=1, racon_path="racon"):
+def run_racon(reads_file, sam_file, ref_file, racon_path, threads):
     """Polish the alignment using racon."""
     try:
         cmd = [

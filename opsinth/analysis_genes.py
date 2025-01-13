@@ -5,7 +5,7 @@ from typing import List, Tuple, Optional
 from opsinth.resources import *
 from opsinth.utils import *
 from opsinth.analysis_variants import genotype_known_variants, format_variant_classification
-from opsinth.resources import *
+from opsinth.config import *
 
 # Create module logger
 logger = logging.getLogger('opsinth.analysis_genes')
@@ -37,20 +37,20 @@ def run_find_genes(results, out_prefix):
     # Get sequences
     seq = results.get('seq_polished')
     logger.info("Reading reference sequences")
-    opn1mw_seq = read_fasta_seq(OPN1MW_REF)
-    opn1lw_seq = read_fasta_seq(OPN1LW_REF)
+    opn1mw_seq = read_fasta_seq(REFERENCES['opn1mw_cdna'])
+    opn1lw_seq = read_fasta_seq(REFERENCES['opn1lw_cdna'])
 
-    # Align sequences
+    # Align OPN1MW sequences to identify color-determining variants
     logger.info("Aligning OPN1MW reference")
-    aln_opn1mw = align_sequences(str(polished_fasta), OPN1MW_REF, preset="splice:hq")
-    logger.info("Aligning OPN1LW reference")
-    aln_opn1lw = align_sequences(str(polished_fasta), OPN1LW_REF, preset="splice:hq")
+    aln_opn1mw = align_sequences(str(polished_fasta), REFERENCES['opn1mw_cdna'], preset="splice:hq")
+    #logger.info("Aligning OPN1LW reference")
+    #aln_opn1lw = align_sequences(str(polished_fasta), OPN1LW_REF, preset="splice:hq")
 
     # Filter alignments
     aln_opn1mw_filtered = filter_alignments(aln_opn1mw)
-    aln_opn1lw_filtered = filter_alignments(aln_opn1lw)
+    #aln_opn1lw_filtered = filter_alignments(aln_opn1lw)
 
-    logger.info(f"Found {len(aln_opn1mw_filtered)} MW and {len(aln_opn1lw_filtered)} LW alignments")
+    #ogger.info(f"Found {len(aln_opn1mw_filtered)} MW and {len(aln_opn1lw_filtered)} LW alignments")
 
     # Analyze variants
     genotyped_alignments = []
@@ -66,7 +66,7 @@ def run_find_genes(results, out_prefix):
 
         # Analyze exon 5 color-determining variants
         logger.info("Analyzing exon 5 color-determining variants")
-        exon5_vars = genotype_known_variants(aln, seq, OPSIN_EXON5_COLOR_VARIANTS)
+        exon5_vars = genotype_known_variants(aln, seq, VARIANTS['exon5_color_variants'])
         logger.info(format_variant_classification(exon5_vars))
         
         # Determine if the alignment is OPN1MW or OPN1LW
@@ -94,7 +94,7 @@ def run_find_genes(results, out_prefix):
         
         # Analyze exon 3 splicing variants
         logger.info("Analyzing exon 3 splicing variants")
-        exon3_vars = genotype_known_variants(aln, seq, OPSIN_EXON3_SPLICING_VARIANTS)
+        exon3_vars = genotype_known_variants(aln, seq, VARIANTS['exon3_splicing_variants'])
         logger.info(format_variant_classification(exon3_vars))
 
         # Add haplotype name based on AA changes (Neitz) 
@@ -111,6 +111,9 @@ def run_find_genes(results, out_prefix):
             'exon3_variants': exon3_vars
         })
 
+    aln_full_opn1mw = align_sequences(str(polished_fasta), REFERENCES['opn1mw'], preset="asm5")
+    aln_full_opn1lw = align_sequences(str(polished_fasta), REFERENCES['opn1lw'], preset="asm5")
+    
     logger.info(f"Completed analysis of {len(genotyped_alignments)} alignments")
     return genotyped_alignments
 
@@ -203,7 +206,7 @@ def filter_alignments(alignments: List[dict]) -> List[dict]:
 
     # Assign sequential IDs
     for i, alignment in enumerate(alignments_filtered):
-        alignment['id'] = f"opn1_locus_{i + 1:02d}"
+        alignment['id'] = f"{alignment['query_name']}_{i + 1:02d}"
 
     # Log sorted alignments
     logging.debug("\nSorted alignments with IDs:")
@@ -449,7 +452,7 @@ def classify_opsin_type(alignment: dict, ref_seq: str) -> dict:
         - alt_count: Number of alternative (LW) matches
         - opsin_type: Classification result ("OPN1MW (Green)", "OPN1LW (Red)", or "Undetermined")
     """
-    variants = genotype_known_variants(alignment, ref_seq, OPSIN_EXON5_COLOR_VARIANTS)
+    variants = genotype_known_variants(alignment, ref_seq, VARIANTS['exon5_color_variants'])
     
     ref_count = sum(1 for var in variants if var['is_ref'])
     alt_count = sum(1 for var in variants if var['is_alt'])

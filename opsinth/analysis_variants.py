@@ -1,5 +1,7 @@
 import logging
 from opsinth.utils import query_to_ref_pos
+from opsinth.config import *
+
 
 def genotype_known_variants(alignment_dict: dict, ref_seq: str, variants: list) -> list:
     """
@@ -98,3 +100,4 @@ def format_variant_classification(variants: list) -> str:
         )
     
     return "\n".join(lines)
+

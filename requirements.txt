@@ -2,5 +2,5 @@ pysam
 matplotlib
 edlib
 mappy
-yaml
+pyyaml
 numpy

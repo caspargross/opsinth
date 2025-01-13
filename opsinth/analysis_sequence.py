@@ -3,6 +3,7 @@ import pysam
 import edlib
 from collections import Counter
 from opsinth.utils import *
+from opsinth.resources import *
 
 def run_ref_analysis(bam_path, bed_path, ref_path, anchors_path):
     

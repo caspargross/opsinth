@@ -2,16 +2,27 @@
 
 ## Installlation
 
-```bash
-pip install -r requirements.txt
+clone this package from GitHub
+```
+git clone 
 ```
 
-## Dependencies
+### Option A
 
-Python dependencies are in `requirements.txt`.
+Install python dependencies with pipx or with pip into a new virtualenv
+```
+pipx -f requirements.txt
+```
 
-Racon is required for polishing and can be installed from [here](https://github.com/isovic/racon). By default, the racon installation available in the PATH is used, but this can be overridden by providing a path to the `--racon` argument in the command line.
+We also need racon for polishing. Install it from source [here](https://github.com/isovic/racon) and add the executable to your PATH environment. The path to the racon executable can also be provided with the `--racon-path` command line argument. 
 
+### Option B: Install with conda
+
+Alternatively you can also install racon together with all required python dependencies via conda
+```
+conda env create -f conda_env.yml -n opsinth
+conda activate opsinth
+```
 ## Usage
 
 ```bash

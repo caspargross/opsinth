@@ -17,9 +17,7 @@
                 "--ref", "data/grch38.chrX.roi.fa.gz",
                 "--anchors", "data/crispr_anchors.fasta",
                 "--out", "tests/out/crispr/a004",
-                "--racon", "lib/racon",
-                "-v",
-                "--no-igv"
+                "-vv",
             ]
         },
         {
@@ -32,7 +30,7 @@
             "args": [
                 "--bam", "tests/input/aln_opsin_a004_a005.sorted.bam",
                 "--out", "tests/out/wgs/a004_wgs_coords",
-                "--no-igv"
+                "-vv"
             ]
         },
         {
@@ -49,7 +47,6 @@
                 "--anchors", "data/wgs_anchors.fasta",
                 "--out", "tests/out/wgs_cv009/cv009",
                 "-vv",
-                "--no-igv"	
             ]
         },
         {
