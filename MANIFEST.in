@@ -1,0 +1,7 @@
+# MANIFEST.in
+include opsinth/resources/*.bed
+include opsinth/resources/*.fa
+include opsinth/resources/*.fa.gz
+include opsinth/resources/*.fa.gz.fai
+include opsinth/resources/*.fa.gz.gzi
+include README.md
