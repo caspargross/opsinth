@@ -13,7 +13,7 @@
 - [ ] Create new reference alignments as GTF
 - [ ] Call variants (paftools.js) and return in VCF format
 - [ ] Find SVs (SVIM?)
-- [X] Try to align double anchored reads in reverse orientation: Not needed anymore?
+- [X] Try to align double anchored reads in reverse orientation: Fixed by using low and high anchor
 - [X] Create racon polishing performance output plot
 - [X] Find a way to add racon for multiple platforms. Takes from path.
 - [X] Integrate output from Paraphase: Not needed

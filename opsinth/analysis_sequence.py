@@ -404,25 +404,37 @@ def align_reads_to_ref(reads, no_anchor_reads, unique_read_anchors, double_ancho
         logging.debug("Aligning: %s : %s", read, double_anchor_reads[read])
 
         # Find low and high anchor on this read
-        if anchors_on_ref['anchor_positions'][anchor1]['start'] < anchors_on_ref['anchor_positions'][anchor2]['start']:
-            anchor_low = anchors_on_ref['anchor_positions'][anchor1]['start']
-            anchor_high = anchors_on_ref['anchor_positions'][anchor2]['start']
+        if anchors_on_ref['forward'].index(anchor1) < anchors_on_ref['forward'].index(anchor2):
+            anchor_low, anchor_high = anchor1, anchor2
         else:
-            anchor_low = anchors_on_ref['anchor_positions'][anchor2]['start']
-            anchor_high = anchors_on_ref['anchor_positions'][anchor1]['start']
-        seq = reads[read]['seq_query'][anchor_low:anchor_high]
-        qual = reads[read]['query_qualities'][anchor_low:anchor_high]
-        ref = seq_ref[anchor_low:anchor_high]
+            anchor_low, anchor_high = anchor2, anchor1
+ 
+        # Extract sequence between low and high anchor from read and reference
+        anchor_start_on_ref = anchors_on_ref['anchor_positions'][anchor_low]['start']
+        anchor_end_on_ref = anchors_on_ref['anchor_positions'][anchor_high]['end']
+        anchor_start_on_read =anchors_on_reads[read][anchor_low]['locations'][0][0]
+        anchor_end_on_read = anchors_on_reads[read][anchor_high]['locations'][0][1]
+
+        seq = reads[read]['seq_query'][anchor_start_on_read:anchor_end_on_read]
+        qual = reads[read]['query_qualities'][anchor_start_on_read:anchor_end_on_read]
+        ref = seq_ref[anchor_start_on_ref:anchor_end_on_ref]
         
         if reads[read]['strand'] == "+" :   # + Forward read
             alignment_cases['E'] += 1
         else:                               # - Reverse read
             alignment_cases['F'] += 1
-
+        
         reads_aligned[read] = align_with_edlib(seq, ref, "NW")
+        
+        # Calculate reference start
+        if reads[read]['strand'] == "+" :   # + Forward read
+            reads_aligned[read]['reference_start'] = anchor_start_on_ref
+        else:                               # - Reverse read
+            reads_aligned[read]['reference_start'] = anchor_end_on_ref - reads_aligned[read]['ref_length'] + 1
+
+        # Add read quality and strand
         reads_aligned[read]['query_qualities'] = qual
         reads_aligned[read]['strand'] = reads[read]['strand']
-        reads_aligned[read]['reference_start'] = anchor_low
         
         logging.debug(
             "Full read length: %d, Read length trimmed after anchor: %d",
