@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<Session genome="GRCh38" hasGeneTrack="true" hasSequenceTrack="true" locus="chrX:153,576,000-153,591,000" version="8">
+    <Resources>
+        <Resource path="{{reference_path}}"/>
+        <Resource path="{{bam_path}}"/>
+    </Resources>
+    <Panel height="1000" name="DataPanel" width="1903">
+        <Track altColor="0,0,178" autoScale="true" color="175,175,175" colorScale="ContinuousColorScale;0.0;100.0;255,255,255;175,175,175" displayMode="COLLAPSED" featureVisibilityWindow="-1" fontSize="10" id="{{reference_path}}" name="Reference" showDataRange="true" visible="true"/>
+        <Track altColor="0,0,178" autoScale="true" color="0,0,178" colorScale="ContinuousColorScale;0.0;100.0;255,255,255;0,0,178" displayMode="EXPANDED" featureVisibilityWindow="-1" fontSize="10" id="{{bam_path}}" name="Alignments" showDataRange="true" visible="true">
+            <RenderOptions/>
+        </Track>
+    </Panel>
+    <PanelLayout dividerFractions="0.009615384615384616"/>
+    <HiddenAttributes>
+        <Attribute name="DATA FILE"/>
+        <Attribute name="DATA TYPE"/>
+        <Attribute name="NAME"/>
+    </HiddenAttributes>
+</Session>

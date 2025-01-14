@@ -249,7 +249,7 @@ def write_fasta(seq, roi, outfile):
         # Fasta header coordinates are 0-based
         fasta_file.write(f">{roi[0][0]} {roi[0][1]}-{roi[0][2]}\n")
         fasta_file.write(seq + "\n")
-    logging.info(f"Draft sequence written to {out_prefix}.fasta")   
+    logging.info(f"Export sequence to {out_prefix}.fasta")   
 
 def configure_logging(verbosity: int = 0):
     """
@@ -282,12 +282,6 @@ def configure_logging(verbosity: int = 0):
     logging.getLogger('matplotlib').setLevel(logging.WARNING)
     logging.getLogger('PIL').setLevel(logging.WARNING)
     
-    # Create a logger for opsinth
-    logger = logging.getLogger('opsinth')
-    logger.setLevel(level)
-    
-    logger.debug(f"Log level set to: {logging.getLevelName(level)}")
-
 def convert_coordinate(pos: int, cigar: str, direction: str = "query_to_ref", 
                       query_start: int = 0, ref_start: int = 0) -> int:
     """
@@ -354,3 +348,27 @@ def ref_to_query_pos(ref_pos: int, cigar: str, query_start: int = 0, ref_start: 
     """Convert reference position to query position"""
     return convert_coordinate(ref_pos, cigar, "ref_to_query", query_start, ref_start)
 
+def create_igv_session(reference_path, bam_path, output_prefix, template_path):
+    """
+    Create an IGV session file from template.
+    
+    Args:
+        reference_path (str): Path to the reference FASTA file
+        bam_path (str): Path to the BAM file
+        output_path (str): Where to save the IGV session file
+        template_path (str): Path to the IGV session template
+    """
+    output_path = f"{output_prefix}.igv_session.xml"
+
+    with open(template_path) as f:
+        template = f.read()
+    
+    # Replace placeholders with actual paths
+    session = template.replace('{{reference_path}}', reference_path)
+    session = session.replace('{{bam_path}}', bam_path)
+    
+    # Write the session file
+    with open(output_path, 'w') as f:
+        f.write(session)
+
+    logging.info(f"IGV session file created at {output_path}")

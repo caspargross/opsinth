@@ -3,7 +3,6 @@
 - [ ] Add edit distance to BAM tags
 - [ ] Output racon polishing stats to text file instead of log?
 - [ ] Better object oriented programming. Results class.
-- [ ] Create draft seq from overlapping reads if no spanning are available.
 - [ ] Create Plot with https://github.com/Edinburgh-Genome-Foundry/DnaFeaturesViewer
 - [ ] Create comparative plot to ref with https://github.com/moshi4/pyGenomeViz
 - [ ] Plot linear regression for alignment Quality (Edit distance). Maybe show in Plots
@@ -13,6 +12,8 @@
 - [ ] Create new reference alignments as GTF
 - [ ] Call variants (paftools.js) and return in VCF format
 - [ ] Find SVs (SVIM?)
+- [X] Filter out reads with edit distance > 15% of read length
+- [O] Create draft seq from overlapping reads if no spanning are available. Todo confirm correct implementation.
 - [X] Try to align double anchored reads in reverse orientation: Fixed by using low and high anchor
 - [X] Create racon polishing performance output plot
 - [X] Find a way to add racon for multiple platforms. Takes from path.

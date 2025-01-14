@@ -8,9 +8,9 @@ from opsinth.config import CONSTANTS
 
 def run_ref_analysis(bam_path, bed_path, ref_path, anchors_path):
     
-    logging.info("Start analysis on reference")
-    
-    logging.info("Start reading input files")
+    logging.info("Start reference based sequence analysis")
+   
+    logging.debug("Reading input files")
 
     roi = read_bed_file(bed_path)
     bam = read_bam_file(bam_path, roi)
@@ -18,7 +18,7 @@ def run_ref_analysis(bam_path, bed_path, ref_path, anchors_path):
     anchors = read_anchors(anchors_path)
     reads = read_bam_file(bam_path, roi)
     
-    logging.info("Finished reading input files")
+    logging.debug("Input files loaded")
     
     # Align anchors to reference sequence
     anchors_on_ref = align_anchors_to_ref(anchors, seq_ref)
@@ -104,7 +104,7 @@ def filter_reads_by_edit_distance(reads_aligned):
         edit_dist_pct = reads_aligned[read]['aln']['editDistance'] / len(reads_aligned[read]['seq']) * 100
         if edit_dist_pct <= CONSTANTS['filter_edit_distance_percentage']:
             filtered_reads_aligned[read] = reads_aligned[read]
-            logging.info(f"Filtered out read {read} with {edit_dist_pct:.1f}% edit distance")
+            logging.debug(f"Kept read {read} with {edit_dist_pct:.1f}% edit distance")
     
     logging.info(f"Filtered out {length_unfiltered_reads - len(filtered_reads_aligned)} reads with >{CONSTANTS['filter_edit_distance_percentage']}% edit distance")
 
@@ -128,7 +128,7 @@ def align_anchors_to_ref(fasta_anchors, seq_ref):
     for anchor in fasta_anchors:
         aln = edlib.align(fasta_anchors[anchor], seq_ref, task="path", mode="HW")
         if aln['editDistance'] > 0:
-            logging.warning(f"No perfect match for {anchor}")
+            logging.debug(f"No perfect match for {anchor}")
             logging.debug(f"Best anchor match: {aln}")
 
         anchors[anchor] = {

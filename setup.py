@@ -21,6 +21,7 @@ setup(
             'resources/*.fa.gz.fai',
             'resources/*.fa.gz.gzi',
             'resources/*.yaml'
+            'resources/*.xml',
         ],
     },
     install_requires=[

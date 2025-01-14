@@ -35,6 +35,15 @@ class Opsinth:
         self.parser.add_argument('--n_polish_rounds', required=False, 
                                default=DEFAULTS['n_polish_rounds'],
                                help='Number of polishing rounds')
+        self.parser.add_argument('--debug_plots', 
+                                default=DEFAULTS['debug_plots'],
+                                help='Create debug plots')
+        self.parser.add_argument('--export_unpolished',
+                                default=DEFAULTS['export_unpolished'],
+                                help="Export unpolished sequence and alignments to file")
+        self.parser.add_argument('--export_reference_based',
+                                default=DEFAULTS['export_refbased'],
+                                help="Export reference based alignments (without denovo)")
         self.parser.add_argument('-v', '--verbose', action='count', 
                                default=2,
                                help='Set verbosity level (e.g., -v, -vv, -vvv) Default: -vv')
@@ -47,44 +56,53 @@ class Opsinth:
         
         # Configure logging based on verbosity level
         configure_logging(args.verbose)
-        
-        logging.info(f"OPSINTH v{VERSION}")
+        logger = logging.getLogger('opsinth')
+        logger.info(f"OPSINTH v{VERSION}")
 
-        # Determine output directory and prefix        # Determine output directory and prefix
+        # Determine output directory and prefix
         output_dir = os.path.dirname(args.out)
         if output_dir:
             os.makedirs(output_dir, exist_ok=True)
-            out_prefix = os.path.join(output_dir, "opsinth")
+            out_prefix = args.out
         else:
             out_prefix = args.out
 
-        # Run analysis
+        # Step1: Refbased analysis
         results_ref = run_ref_analysis(args.bam, args.bed, args.ref, args.anchors)
+
+        if args.export_reference_based:
+            write_bam(results_ref.get('reads_aligned'), results_ref.get('reads'), results_ref.get('roi'), (out_prefix + ".refbased"), VERSION, args.bam)
+            if args.debug_plots:
+                plot_coverage(results_ref, (out_prefix + ".refbased"))
+                plot_alignment_quality(results_ref, (out_prefix + ".refbased"))
+
+        # Step2: Denovo analysis
         results_denovo = run_denovo_analysis(results_ref.copy())
+
+        if args.export_unpolished:
+            write_fasta(results_denovo.get('seq_denovo'), results_denovo.get('roi'), (out_prefix + ".unpolished"))
+            write_bam(results_denovo.get('reads_aligned'), results_denovo.get('reads'), results_denovo.get('roi'), (out_prefix + ".unpolished"), VERSION)
+            if args.debug_plots:
+                plot_coverage(results_denovo, (out_prefix + ".unpolished"))
+                plot_alignment_quality(results_denovo, (out_prefix + ".unpolished"))
+
+        # Step3: Polishing
         results_polished = run_polish_denovo(results_denovo.copy(), out_prefix, n_polish_rounds=args.n_polish_rounds, racon_path=args.racon)
+
+        write_fasta(results_polished.get('seq_polished'), results_polished.get('roi'), (out_prefix))
+        write_bam(results_polished.get('reads_aligned'), results_polished.get('reads'), results_polished.get('roi'), (out_prefix), VERSION)
+        if args.debug_plots:
+            plot_coverage(results_polished, out_prefix)
+            plot_alignment_quality(results_polished, out_prefix)
+            plot_polish_stats(results_polished.get('polish_stats'), out_prefix)
+
+        # Step4: Find genes and haplotypes
         results_genes = run_find_genes(results_polished.copy(), out_prefix)
 
-        # Write results_genes to file
         with open(out_prefix + ".genes.json", "w") as f:
             json.dump(results_genes, f, indent=4)
 
-        # Plot and write reference results
-        plot_coverage(results_ref, (out_prefix + ".ref"))
-        plot_alignment_quality(results_ref, (out_prefix + ".ref"))
-        write_bam(results_ref.get('reads_aligned'), results_ref.get('reads'), results_ref.get('roi'), (out_prefix + ".ref"), VERSION, args.bam)
-
-        # Plot and write denovo results
-        write_fasta(results_denovo.get('seq_denovo'), results_denovo.get('roi'), (out_prefix + ".denovo"))
-        plot_coverage(results_denovo, (out_prefix + ".denovo"))
-        plot_alignment_quality(results_denovo, (out_prefix + ".denovo"))
-        write_bam(results_denovo.get('reads_aligned'), results_denovo.get('reads'), results_denovo.get('roi'), (out_prefix + ".denovo"), VERSION)
-
-        # Plot and write polished results
-        write_fasta(results_polished.get('seq_polished'), results_polished.get('roi'), (out_prefix + ".denovo.polished"))
-        plot_coverage(results_polished, (out_prefix + ".denovo.polished"))
-        plot_alignment_quality(results_polished, (out_prefix + ".denovo.polished"))
-        write_bam(results_polished.get('reads_aligned'), results_polished.get('reads'), results_polished.get('roi'), (out_prefix + ".denovo.polished"), VERSION)
-        plot_polish_stats(results_polished.get('polish_stats'), out_prefix)
+        create_igv_session(f"{out_prefix}.fasta", f"{out_prefix}.bam", out_prefix, DEFAULTS['igv_session_template'])
 
         # #if not args.no_igv:
         #     # Convert ROI list to string format for IGV.js
@@ -97,5 +115,5 @@ class Opsinth:
 
         #     # Open IGV viewer
         #     open_igv_viewer(output_dir)
-
-        logging.info("Completed successfully")
+    
+        logger.info("Opsinth completed successfully")

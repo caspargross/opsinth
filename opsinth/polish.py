@@ -99,18 +99,29 @@ def evaluate_racon_improvement(seq_unpolished, seq_polished):
     
     # Parse CIGAR string to count operations
     cigar = alignment['cigar']
-    matches = cigar.count('=')
-    mismatches = cigar.count('X') 
-    insertions = cigar.count('I')
-    deletions = cigar.count('D')
     
-    # Get nice alignment for debug logging
-    # nice_aln = edlib.getNiceAlignment(alignment, seq_unpolished, seq_polished)
-    # with open('polish_alignment.txt', 'w') as f:
-    #     f.write("Alignment of unpolished vs polished sequence:\n")
-    #     f.write(f"Query:  {nice_aln['query_aligned']}\n")
-    #     f.write(f"        {nice_aln['matched_aligned']}\n") 
-    #     f.write(f"Target: {nice_aln['target_aligned']}\n")
+    # Initialize counters
+    matches = 0
+    mismatches = 0
+    insertions = 0
+    deletions = 0
+    
+    # Parse CIGAR string with numbers
+    current_number = ''
+    for char in cigar:
+        if char.isdigit():
+            current_number += char
+        else:
+            count = int(current_number)
+            if char == '=':
+                matches += count
+            elif char == 'X':
+                mismatches += count
+            elif char == 'I':
+                insertions += count
+            elif char == 'D':
+                deletions += count
+            current_number = ''
     
     stats = {
         'len_unpolished': len(seq_unpolished),

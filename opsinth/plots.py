@@ -6,7 +6,7 @@ from opsinth.resources import *
 
 
 def plot_coverage(results, output_prefix):
-    logging.info("Starting coverage plot generation")
+    logging.debug("Debug plots: Start generating read coverage plot")
     
     coverages = results['anchors_on_ref']['anchor_positions']
     coverages['no_anchor'] = {}
@@ -42,12 +42,14 @@ def plot_coverage(results, output_prefix):
 
     plt.stackplot(x, values, step='pre', labels=labels)
     plt.legend()
-    plt.savefig(f"{output_prefix}.coverage_plot.png")
+    plt.savefig(f"{output_prefix}.debug_plot.coverage_plot.png")
     plt.close()
 
-    logging.info("Coverage plot saved successfully")
+    logging.info(f"Debug plots: Export read coverage to {output_prefix}.debug_plot.coverage_plot.png")
 
 def plot_alignment_quality(results, output_prefix):
+    logging.debug("Debug plots: Start generating alignment quality plot")
+
     edit_distances = []
     matched_query_lengths = []
     colors = []
@@ -79,8 +81,10 @@ def plot_alignment_quality(results, output_prefix):
     plt.ylabel("Edit distance to reference genome")
     plt.title("Edit Distance vs Aligned Read Length")
     plt.xlim(min(matched_query_lengths), max(matched_query_lengths))
-    plt.savefig(f"{output_prefix}.alignment_quality_plot.png")
+    plt.savefig(f"{output_prefix}.debug_plot.alignment_quality_plot.png")
     plt.close()
+
+    logging.info(f"Debug plots: Export alignment quality to {output_prefix}.debug_plot.alignment_quality_plot.png")
 
 def plot_polish_stats(polish_stats, output_prefix):
     """
@@ -90,10 +94,10 @@ def plot_polish_stats(polish_stats, output_prefix):
         results: Dictionary containing polish_stats from run_polish_denovo
         output_prefix: Prefix for output files
     """
-    logging.info("Generating polish statistics plots")
+    logging.debug("Debug plots: Start generating polishing metrics plots")
     
     if not polish_stats:
-        logging.warning("No polish statistics found to plot")
+        logging.warning("No polishing metrics found to plot")
         return
         
     rounds = [round + 1 for round in polish_stats.keys()]
@@ -132,13 +136,13 @@ def plot_polish_stats(polish_stats, output_prefix):
     width = 0.2
     
     # Extract operation counts
-    matches = [stats['matches'] for stats in polish_stats.values()]
+    #matches = [stats['matches'] for stats in polish_stats.values()]
     mismatches = [stats['mismatches'] for stats in polish_stats.values()]
     insertions = [stats['insertions'] for stats in polish_stats.values()]
     deletions = [stats['deletions'] for stats in polish_stats.values()]
     
     # Create bars
-    plt.bar(x - width*1.5, matches, width, label='Matches')
+    #plt.bar(x - width*1.5, matches, width, label='Matches')
     plt.bar(x - width/2, mismatches, width, label='Mismatches')
     plt.bar(x + width/2, insertions, width, label='Insertions')
     plt.bar(x + width*1.5, deletions, width, label='Deletions')
@@ -149,7 +153,7 @@ def plot_polish_stats(polish_stats, output_prefix):
     plt.xticks(x, rounds)
     plt.legend()
     plt.tight_layout()
-    plt.savefig(f"{output_prefix}.polish_stats_operations.png")
+    plt.savefig(f"{output_prefix}.debug_plot.polishing_metrics.png")
     plt.close()
     
-    logging.info("Polish statistics plots saved successfully")
+    logging.info(f"Debug plots: Export polishing metrics to {output_prefix}.polishing_metrics.png")

@@ -28,11 +28,14 @@ def run_find_genes(results, out_prefix):
         logger.error("No polished sequence found in results")
         return []
     
-    # Write polished sequence to FASTA
-    polished_fasta = Path(f"{out_prefix}.polished.fasta")
-    with open(polished_fasta, 'w') as f:
-        f.write(f">polished_sequence\n{results['seq_polished']}\n")
-    logger.info(f"Wrote polished sequence to {polished_fasta}")
+    # Check if file exists, else write the file
+    polished_fasta = Path(f"{out_prefix}.fasta")
+    if not polished_fasta.exists():
+        with open(polished_fasta, 'w') as f:
+            f.write(f">polished_sequence\n{results['seq_polished']}\n")
+        logger.info(f"Wrote polished sequence to {polished_fasta}")
+    else:
+        logger.info(f"Polished sequence file already exists: {polished_fasta}")
     
     # Get sequences
     seq = results.get('seq_polished')

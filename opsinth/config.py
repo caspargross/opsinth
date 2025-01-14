@@ -42,12 +42,16 @@ CONSTANTS = {
 
 # Default paths configuration
 DEFAULTS = {
-    'out': 'opsinth_out',
+    'out': 'opsinth',
     'bed': get_resource_path('OPN1_region.GRCh38.bed'),
     'ref': get_resource_path('GRCh38.chrX.roi.fa.gz'),
     'anchors': get_resource_path('anchors.WGS.GRCh38.fa'),
     'racon': 'racon',
-    'n_polish_rounds': 6
+    'n_polish_rounds': 6,
+    'export_unpolished': False,
+    'export_refbased': False,
+    'debug_plots': True,
+    'igv_session_template': get_resource_path('igv_session_template.xml')
 }
 
 # Reference sequences

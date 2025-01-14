@@ -3,3 +3,4 @@ tests/out/*
 .venv
 .conda_env
 *.egg-info/*
+build
