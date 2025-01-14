@@ -1,16 +1,21 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<Session genome="GRCh38" hasGeneTrack="true" hasSequenceTrack="true" locus="chrX:153,576,000-153,591,000" version="8">
+<Session genome="{{reference_name}}" locus="{{roi}}" version="8">
     <Resources>
-        <Resource path="{{reference_path}}"/>
-        <Resource path="{{bam_path}}"/>
+        <Resource path="{{bam_name}}"/>
     </Resources>
-    <Panel height="1000" name="DataPanel" width="1903">
-        <Track altColor="0,0,178" autoScale="true" color="175,175,175" colorScale="ContinuousColorScale;0.0;100.0;255,255,255;175,175,175" displayMode="COLLAPSED" featureVisibilityWindow="-1" fontSize="10" id="{{reference_path}}" name="Reference" showDataRange="true" visible="true"/>
-        <Track altColor="0,0,178" autoScale="true" color="0,0,178" colorScale="ContinuousColorScale;0.0;100.0;255,255,255;0,0,178" displayMode="EXPANDED" featureVisibilityWindow="-1" fontSize="10" id="{{bam_path}}" name="Alignments" showDataRange="true" visible="true">
+    <Panel height="1028" name="Panel1736848868834" width="2541">
+        <Track attributeKey="{{bam_name}} Coverage" autoScale="true" clazz="org.broad.igv.sam.CoverageTrack" fontSize="10" id="T:\users\ahgrosc1\dev\opsinth\tests\out\wgs_cv009\cv009.bam_coverage" name="cv009.bam Coverage" snpThreshold="0.2" visible="true">
+            <DataRange baseline="0.0" drawBaseline="true" flipAxis="false" maximum="11.0" minimum="0.0" type="LINEAR"/>
+        </Track>
+        <Track attributeKey="{{bam_name}} Junctions" autoScale="false" clazz="org.broad.igv.sam.SpliceJunctionTrack" fontSize="10" groupByStrand="false" height="60" id="T:\users\ahgrosc1\dev\opsinth\tests\out\wgs_cv009\cv009.bam_junctions" maxdepth="50" name="cv009.bam Junctions" visible="true"/>
+        <Track attributeKey="{{bam_name}}" clazz="org.broad.igv.sam.AlignmentTrack" color="185,185,185" displayMode="EXPANDED" fontSize="10" id="T:\users\ahgrosc1\dev\opsinth\tests\out\wgs_cv009\cv009.bam" name="cv009.bam" visible="true">
             <RenderOptions/>
         </Track>
     </Panel>
-    <PanelLayout dividerFractions="0.009615384615384616"/>
+    <Panel height="124" name="FeaturePanel" width="2541">
+        <Track attributeKey="Reference sequence" clazz="org.broad.igv.track.SequenceTrack" fontSize="10" id="Reference sequence" name="Reference sequence" sequenceTranslationStrandValue="POSITIVE" shouldShowTranslation="false" visible="true"/>
+    </Panel>
+    <PanelLayout dividerFractions="0.010221465076660987,0.8901192504258943"/>
     <HiddenAttributes>
         <Attribute name="DATA FILE"/>
         <Attribute name="DATA TYPE"/>

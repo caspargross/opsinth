@@ -42,10 +42,10 @@ def plot_coverage(results, output_prefix):
 
     plt.stackplot(x, values, step='pre', labels=labels)
     plt.legend()
-    plt.savefig(f"{output_prefix}.debug_plot.coverage_plot.png")
+    plt.savefig(f"{output_prefix}.plot.coverage_plot.png")
     plt.close()
 
-    logging.info(f"Debug plots: Export read coverage to {output_prefix}.debug_plot.coverage_plot.png")
+    logging.info(f"Debug plots: Export read coverage to {output_prefix}.plot.coverage_plot.png")
 
 def plot_alignment_quality(results, output_prefix):
     logging.debug("Debug plots: Start generating alignment quality plot")
@@ -81,10 +81,10 @@ def plot_alignment_quality(results, output_prefix):
     plt.ylabel("Edit distance to reference genome")
     plt.title("Edit Distance vs Aligned Read Length")
     plt.xlim(min(matched_query_lengths), max(matched_query_lengths))
-    plt.savefig(f"{output_prefix}.debug_plot.alignment_quality_plot.png")
+    plt.savefig(f"{output_prefix}.plot.alignment_quality_plot.png")
     plt.close()
 
-    logging.info(f"Debug plots: Export alignment quality to {output_prefix}.debug_plot.alignment_quality_plot.png")
+    logging.info(f"Debug plots: Export alignment quality to {output_prefix}.plot.alignment_quality_plot.png")
 
 def plot_polish_stats(polish_stats, output_prefix):
     """
@@ -127,7 +127,7 @@ def plot_polish_stats(polish_stats, output_prefix):
     
     plt.title('Sequence Lengths and Edit Distance by Polish Round')
     plt.tight_layout()
-    plt.savefig(f"{output_prefix}.polish_stats_lengths.png")
+    plt.savefig(f"{output_prefix}.plot.polish_stats_lengths.png")
     plt.close()
     
     # Second plot: Operation counts
@@ -153,7 +153,7 @@ def plot_polish_stats(polish_stats, output_prefix):
     plt.xticks(x, rounds)
     plt.legend()
     plt.tight_layout()
-    plt.savefig(f"{output_prefix}.debug_plot.polishing_metrics.png")
+    plt.savefig(f"{output_prefix}.plot.polishing_metrics.png")
     plt.close()
     
-    logging.info(f"Debug plots: Export polishing metrics to {output_prefix}.polishing_metrics.png")
+    logging.info(f"Debug plots: Export polishing metrics to {output_prefix}.plot.polishing_metrics.png")

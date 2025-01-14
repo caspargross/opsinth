@@ -102,7 +102,7 @@ class Opsinth:
         with open(out_prefix + ".genes.json", "w") as f:
             json.dump(results_genes, f, indent=4)
 
-        create_igv_session(f"{out_prefix}.fasta", f"{out_prefix}.bam", out_prefix, DEFAULTS['igv_session_template'])
+        create_igv_session(f"{out_prefix}.fasta", f"{out_prefix}.bam", results_polished.get('roi'), out_prefix, DEFAULTS['igv_session_template'])
 
         # #if not args.no_igv:
         #     # Convert ROI list to string format for IGV.js

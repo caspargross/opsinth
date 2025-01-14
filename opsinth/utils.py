@@ -348,7 +348,7 @@ def ref_to_query_pos(ref_pos: int, cigar: str, query_start: int = 0, ref_start: 
     """Convert reference position to query position"""
     return convert_coordinate(ref_pos, cigar, "ref_to_query", query_start, ref_start)
 
-def create_igv_session(reference_path, bam_path, output_prefix, template_path):
+def create_igv_session(reference_name, bam_name, roi, output_prefix, template_path):
     """
     Create an IGV session file from template.
     
@@ -358,14 +358,16 @@ def create_igv_session(reference_path, bam_path, output_prefix, template_path):
         output_path (str): Where to save the IGV session file
         template_path (str): Path to the IGV session template
     """
+    import os
     output_path = f"{output_prefix}.igv_session.xml"
 
     with open(template_path) as f:
         template = f.read()
     
     # Replace placeholders with actual paths
-    session = template.replace('{{reference_path}}', reference_path)
-    session = session.replace('{{bam_path}}', bam_path)
+    session = template.replace('{{reference_name}}', os.path.basename(reference_name))
+    session = session.replace('{{roi}}', f"{roi[0][0]}:{roi[0][1]}-{roi[0][2]}")
+    session = session.replace('{{bam_name}}', os.path.basename(bam_name))
     
     # Write the session file
     with open(output_path, 'w') as f:
