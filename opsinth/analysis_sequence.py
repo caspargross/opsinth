@@ -4,6 +4,7 @@ import edlib
 from collections import Counter
 from opsinth.utils import *
 from opsinth.resources import *
+from opsinth.config import CONSTANTS
 
 def run_ref_analysis(bam_path, bed_path, ref_path, anchors_path):
     
@@ -65,7 +66,9 @@ def run_denovo_analysis(results_ref):
     (no_anchor_reads, unique_anchor_reads, double_anchor_reads) = characterize_read_anchors(reads, anchors_on_ref, anchors_on_reads) # Redundant, was calculated in ref analysis already 
     
     reads_aligned = align_reads_to_ref(reads, no_anchor_reads, unique_anchor_reads, double_anchor_reads, anchors_on_reads, seq_draft, anchors_on_ref)
+    reads_aligned_filtered = filter_reads_by_edit_distance(reads_aligned)
 
+    # Create ROI for denovo reference
     min_pos = min(anchor['start'] for anchor in anchors_on_ref['anchor_positions'].values())
     max_pos = max(anchor['end'] for anchor in anchors_on_ref['anchor_positions'].values())
     roi = [["denovo_ref", min_pos, max_pos]]
@@ -80,8 +83,32 @@ def run_denovo_analysis(results_ref):
         'unique_anchor_reads' : unique_anchor_reads,
         'double_anchor_reads' : double_anchor_reads,
         'reads': reads,
-        'reads_aligned': reads_aligned
+        'reads_aligned': reads_aligned_filtered
     }
+
+def filter_reads_by_edit_distance(reads_aligned):
+    """Filter aligned reads based on edit distance percentage threshold.
+    
+    Removes reads that have an edit distance percentage greater than the threshold
+    defined in CONSTANTS['filter_edit_distance_percentage'].
+
+    Args:
+        reads_aligned (dict): Dictionary of aligned reads with alignment information
+
+    Returns:
+        dict: Filtered dictionary containing only reads below the edit distance threshold
+    """
+    length_unfiltered_reads = len(reads_aligned)
+    filtered_reads_aligned = {}
+    for read in reads_aligned:
+        edit_dist_pct = reads_aligned[read]['aln']['editDistance'] / len(reads_aligned[read]['seq']) * 100
+        if edit_dist_pct <= CONSTANTS['filter_edit_distance_percentage']:
+            filtered_reads_aligned[read] = reads_aligned[read]
+            logging.info(f"Filtered out read {read} with {edit_dist_pct:.1f}% edit distance")
+    
+    logging.info(f"Filtered out {length_unfiltered_reads - len(filtered_reads_aligned)} reads with >{CONSTANTS['filter_edit_distance_percentage']}% edit distance")
+
+    return filtered_reads_aligned
 
 def align_anchors_to_ref(fasta_anchors, seq_ref):
     
@@ -159,8 +186,6 @@ def characterize_read_anchors(reads, anchors_on_ref, anchors_on_reads):
     Returns:
         dict: 
     """
-    EDIT_DISTANCE_THRESHOLD= 5
-    MIN_DISTANCE_BETWEEN_ANCHORS = 40000 # At least 1 OPN1LW gene length
 
     valid_read_anchors = {}
     unique_anchor_reads = {}
@@ -170,7 +195,7 @@ def characterize_read_anchors(reads, anchors_on_ref, anchors_on_reads):
     for read in anchors_on_reads:
         valid_read_anchors[read] = []
         for anchor in anchors_on_reads[read]:
-            if anchors_on_reads[read][anchor]['editDistance'] < EDIT_DISTANCE_THRESHOLD:
+            if anchors_on_reads[read][anchor]['editDistance'] < CONSTANTS['edit_distance_threshold']:
                 valid_read_anchors[read].append(anchor)
 
     for read in valid_read_anchors:
@@ -196,7 +221,7 @@ def characterize_read_anchors(reads, anchors_on_ref, anchors_on_reads):
                         distance = new_distance
                         anchor_pair = (anchor, anchor2)
             
-            if distance >= MIN_DISTANCE_BETWEEN_ANCHORS:
+            if distance >= CONSTANTS['min_distance_between_anchors']:
                 logging.debug("Read %s has anchors on both ends: %s", read, valid_read_anchors[read])
                 double_anchor_reads[read] = anchor_pair    
 
@@ -222,41 +247,104 @@ def characterize_read_anchors(reads, anchors_on_ref, anchors_on_reads):
     return(no_anchor_reads, unique_anchor_reads, double_anchor_reads)
 
 def create_draft_ref(results_ref):
-    # Different possible selection criteria for best spanning read
-    # 2. Max aligned read length between anchors
-    # 3. Highest scores of anchor hits  
 
     candidate_reads = {}
     double_anchor_reads = results_ref['double_anchor_reads']
     reads = results_ref['reads']
-    reads_aligned = results_ref['reads_aligned']
     anchors_on_reads = results_ref['anchors_on_reads']
     
-    for read in double_anchor_reads:
-
-        # Calculate anchor distances
-        anchor1 = double_anchor_reads[read][0]
-        anchor2 = double_anchor_reads[read][1]
-        lower_anchor = anchor1 if anchors_on_reads[read][anchor1]['locations'][0][0] < anchors_on_reads[read][anchor2]['locations'][0][0] else anchor2
-        upper_anchor = anchor2 if lower_anchor == anchor1 else anchor1
-        pos_lower_anchor = anchors_on_reads[read][lower_anchor]['locations'][0][0]
-        pos_upper_anchor = anchors_on_reads[read][upper_anchor]['locations'][0][1]
+    # Option 1: There is at least 1 double anchor read
+    if len(results_ref['double_anchor_reads']) > 0:
         
-        candidate_reads[read] = {
-            'anchor_distance': pos_upper_anchor - pos_lower_anchor,
-            'lower_anchor': lower_anchor,
-            'upper_anchor': upper_anchor,
-            'pos_lower_anchor': pos_lower_anchor,
-            'pos_upper_anchor': pos_upper_anchor,
-            'edit_distance': anchors_on_reads[read][lower_anchor]['editDistance'] + anchors_on_reads[read][upper_anchor]['editDistance']
-        }
+        for read in double_anchor_reads:
 
-    # Select best candidate read by minimum edit distance of both anchors, then by anchor distance
-    best_read = min(candidate_reads, key=lambda r: (candidate_reads[r]['edit_distance'], candidate_reads[r]['anchor_distance']))
+            # Calculate anchor distances
+            anchor1 = double_anchor_reads[read][0]
+            anchor2 = double_anchor_reads[read][1]
+            lower_anchor = anchor1 if anchors_on_reads[read][anchor1]['locations'][0][0] < anchors_on_reads[read][anchor2]['locations'][0][0] else anchor2
+            upper_anchor = anchor2 if lower_anchor == anchor1 else anchor1
+            pos_lower_anchor = anchors_on_reads[read][lower_anchor]['locations'][0][0]
+            pos_upper_anchor = anchors_on_reads[read][upper_anchor]['locations'][0][1]
+            
+            candidate_reads[read] = {
+                'anchor_distance': pos_upper_anchor - pos_lower_anchor,
+                'lower_anchor': lower_anchor,
+                'upper_anchor': upper_anchor,
+                'pos_lower_anchor': pos_lower_anchor,
+                'pos_upper_anchor': pos_upper_anchor,
+                'edit_distance': anchors_on_reads[read][lower_anchor]['editDistance'] + anchors_on_reads[read][upper_anchor]['editDistance']
+            }
 
-    logging.info("Best read: %s, edit distance: %d, anchor distance: %d", best_read, candidate_reads[best_read]['edit_distance'], candidate_reads[best_read]['anchor_distance'])
+        # Select best candidate read by minimum edit distance of both anchors, then by anchor distance
+        # Todo: Maybe also consider read quality
+        best_read = min(candidate_reads, key=lambda r: (candidate_reads[r]['edit_distance'], candidate_reads[r]['anchor_distance']))
 
-    seq = reads[best_read]['seq_query'][candidate_reads[best_read]['pos_lower_anchor']:candidate_reads[best_read]['pos_upper_anchor']]
+        logging.info("Create draft ref from double anchor read")
+        logging.info("Best read: %s, edit distance: %d, anchor distance: %d", best_read, candidate_reads[best_read]['edit_distance'], candidate_reads[best_read]['anchor_distance'])
+
+        seq = reads[best_read]['seq_query'][candidate_reads[best_read]['pos_lower_anchor']:candidate_reads[best_read]['pos_upper_anchor']]
+
+    # Option 2: There is no double anchor read, try to find alignment of overlapping reads
+    else:
+        logging.info("Create draft ref from single anchor reads")
+        # Get reads with single anchors
+        unique_anchor_reads = results_ref['unique_anchor_reads']
+        anchors_on_ref = results_ref['anchors_on_ref']
+             
+        # Find reads with lowest and highest anchors
+        low_anchor_reads = {}
+        high_anchor_reads = {}
+        
+        for read_id, anchor in unique_anchor_reads.items():
+            anchor_pos = anchors_on_ref['anchor_positions'][anchor]['start']
+            read_seq = reads[read_id]['seq_query']
+            anchor_on_read = anchors_on_reads[read_id][anchor]['locations'][0]
+            
+            # Use distance threshold to determine low/high anchors
+            anchor_start = anchors_on_ref['anchor_positions'][anchor]['start']
+            first_anchor_pos = anchors_on_ref['anchor_positions'][anchors_on_ref['forward'][0]]['start']
+            last_anchor_pos = anchors_on_ref['anchor_positions'][anchors_on_ref['reverse'][0]]['start']
+            
+            if abs(anchor_start - first_anchor_pos) < CONSTANTS['min_distance_between_anchors']:
+                low_anchor_reads[read_id] = {
+                    'seq': read_seq,
+                    'anchor_pos': anchor_pos,
+                    'read_anchor_start': anchor_on_read[0],
+                    'read_anchor_end': anchor_on_read[1],
+                    'length': len(read_seq)
+                }
+            elif abs(anchor_start - last_anchor_pos) < CONSTANTS['min_distance_between_anchors']:
+                high_anchor_reads[read_id] = {
+                    'seq': read_seq, 
+                    'anchor_pos': anchor_pos,
+                    'read_anchor_start': anchor_on_read[0],
+                    'read_anchor_end': anchor_on_read[1],
+                    'length': len(read_seq)
+                }
+                
+        if len(low_anchor_reads) == 0 or len(high_anchor_reads) == 0:
+            logging.error("Could not find reads spanning both ends - cannot create draft reference")
+            return None
+            
+        # Select longest reads from each end
+        best_low_read = max(low_anchor_reads.items(), key=lambda x: x[1]['length'])
+        best_high_read = max(high_anchor_reads.items(), key=lambda x: x[1]['length'])
+        
+        # Extract sequences after low anchor and before high anchor
+        low_seq = best_low_read[1]['seq'][best_low_read[1]['read_anchor_start']:]
+        high_seq = best_high_read[1]['seq'][:best_high_read[1]['read_anchor_end']]
+        
+        # Find overlap between sequences using prefix alignment
+        aln = edlib.align(high_seq, low_seq, task="path", mode="HW")
+        
+        if aln['editDistance'] / len(high_seq) > CONSTANTS['max_mismatch_percentage']:  # More than 10% mismatch
+            logging.warning("High mismatch in read overlap - draft reference may be unreliable")
+            
+        # Merge sequences using overlap
+        overlap_start = aln['locations'][0][0]
+        seq = low_seq[:overlap_start] + high_seq
+        
+        logging.info("Created draft ref from overlapping reads: %s and %s", best_low_read[0], best_high_read[0])
 
     return seq
 

@@ -32,6 +32,14 @@ def load_variants(variant_file):
         logging.error(f"Missing required variant type in YAML: {e}")
         raise
 
+# Constants
+CONSTANTS = {
+    'min_distance_between_anchors': 40000,
+    'edit_distance_threshold': 5,
+    'max_mismatch_percentage': 0.1,
+    'filter_edit_distance_percentage': 15
+}
+
 # Default paths configuration
 DEFAULTS = {
     'out': 'opsinth_out',
@@ -59,5 +67,6 @@ VARIANTS = {
 __all__ = [
 	'DEFAULTS',
 	'REFERENCES',
-	'VARIANTS'
+	'VARIANTS',
+    'CONSTANTS'
 ] 

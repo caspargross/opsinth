@@ -57,6 +57,7 @@ def run_polish_denovo(results, out_prefix, racon_path, n_polish_rounds, delete_i
             (no_anchor_reads, unique_anchor_reads, double_anchor_reads) = characterize_read_anchors(reads, anchors_on_ref, anchors_on_reads) # Redundant, was calculated in ref analysis already 
             
             reads_aligned = align_reads_to_ref(reads, no_anchor_reads, unique_anchor_reads, double_anchor_reads, anchors_on_reads, seq_unpolished, anchors_on_ref)
+            reads_aligned = filter_reads_by_edit_distance(reads_aligned)
 
         if delete_intermediate_files:
             logging.debug(f"Deleting intermediate files for polish round {i}")
