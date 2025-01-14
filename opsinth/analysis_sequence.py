@@ -337,17 +337,147 @@ def create_draft_ref(results_ref):
         # Find overlap between sequences using prefix alignment
         aln = edlib.align(high_seq, low_seq, task="path", mode="HW")
         
-        if aln['editDistance'] / len(high_seq) > CONSTANTS['max_mismatch_percentage']:  # More than 10% mismatch
+        # Find overlap and merge sequences
+        merged_seq, overlap = merge_sequences_with_best_overlap(low_seq, high_seq)
+        
+        if merged_seq is None:
+            logging.error("Could not find valid overlap between sequences")
+            return None
+            
+        if overlap['edit_distance'] / overlap['length'] > CONSTANTS['max_mismatch_percentage']:
             logging.warning("High mismatch in read overlap - draft reference may be unreliable")
             
-        # Merge sequences using overlap
-        overlap_start = aln['locations'][0][0]
-        seq = low_seq[:overlap_start] + high_seq
+        seq = merged_seq
+        logging.info("Created draft ref from overlapping reads: %s and %s", 
+                    best_low_read[0], best_high_read[0])
         
         logging.info("Created draft ref from overlapping reads: %s and %s", best_low_read[0], best_high_read[0])
 
     return seq
 
+def find_all_overlaps(query_seq, ref_seq, min_block_size=2000, max_edit_distance_pct=15):
+    """Find all possible overlap positions between query and reference sequences using a recursive approach.
+    
+    Args:
+        query_seq (str): Query sequence to find overlaps for
+        ref_seq (str): Reference sequence to search in
+        min_block_size (int): Minimum size of sequence blocks to consider for matching
+        max_edit_distance_pct (float): Maximum allowed edit distance percentage for matches
+        
+    Returns:
+        list: List of dictionaries containing overlap information:
+            - start: Start position in reference
+            - end: End position in reference  
+            - query_start: Start position in query
+            - query_end: End position in query
+            - edit_distance: Edit distance of the match
+            - length: Length of the matching region
+    """
+    matches = []
+    
+    def recursive_find_matches(q_start, q_end, r_start, r_end, depth=0):
+        query_block = query_seq[q_start:q_end]
+        ref_block = ref_seq[r_start:r_end]
+        
+        # Stop if blocks are too small
+        if len(ref_block) < min_block_size:
+            return
+            
+        # Align current block
+        aln = edlib.align(query_block, ref_block, task="path", mode="HW")
+        
+        # Store match if edit distance is acceptable
+        edit_dist_pct = (aln['editDistance'] / len(query_block)) * 100
+        if edit_dist_pct <= max_edit_distance_pct:
+            loc = aln['locations'][0]
+            matches.append({
+                'start': r_start + loc[0],
+                'end': r_start + loc[1] + 1,
+                'query_start': q_start,
+                'query_end': q_start + len(query_block),
+                'edit_distance': aln['editDistance'],
+                    'length': len(query_block)
+                })
+        else: return
+        # Recursively search left and right of current match
+        block_size_left = r_start + loc[0]-1
+        block_size_right = r_end - loc[1]
+        if block_size_left >= min_block_size:
+            # Search left half
+            recursive_find_matches(q_start, q_end, 
+                                r_start, r_start + loc[0]-1, depth + 1)
+        if block_size_right >= min_block_size:
+            # Search right half                    
+            recursive_find_matches(q_start, q_end,
+                                r_start + loc[1], r_end, depth + 1)
+    
+    # Start recursive search with full sequences
+    recursive_find_matches(51, 70, 0, len(ref_seq))
+    
+    # Sort matches by start position
+    matches.sort(key=lambda x: x['start'])
+    
+    return matches
+
+def merge_sequences_with_best_overlap(low_seq, high_seq):
+    """Merge two sequences by finding the most likely overlap position.
+    
+    Args:
+        low_seq (str): Lower sequence to merge
+        high_seq (str): Higher sequence to merge
+        
+    Returns:
+        tuple: (merged sequence, overlap details)
+    """
+    # Find all possible overlaps
+    overlaps = find_all_overlaps(high_seq, low_seq)
+    
+    if not overlaps:
+        logging.warning("No valid overlaps found between sequences")
+        return None, None
+        
+    # Score overlaps based on multiple criteria
+    best_score = -1
+    best_overlap = None
+    
+    # Prepare table header for logging
+    logging.info("\nOverlap candidates:")
+    logging.info(f"{'Start':>6} {'Length':>8} {'Edit Dist':>10} {'Length Score':>13} {'Edit Score':>11} {'Pos Score':>10} {'Total':>8}")
+    logging.info("-" * 70)
+    
+    for overlap in overlaps:
+        # Calculate individual scores
+        length_score = overlap['length'] / len(high_seq)
+        edit_score = 1 - (overlap['edit_distance'] / overlap['length'])
+        position_score = overlap['start'] / len(low_seq)  # Prefer later positions
+        
+        # Calculate total score with weights
+        total_score = (length_score * 0.4 + 
+                      edit_score * 0.4 + 
+                      position_score * 0.2)
+                      
+        # Log scores in table format
+        logging.info(f"{overlap['start']:6d} {overlap['length']:8d} "
+                    f"{overlap['edit_distance']:10d} {length_score:13.3f} "
+                    f"{edit_score:11.3f} {position_score:10.3f} {total_score:8.3f}")
+                      
+        if total_score > best_score:
+            best_score = total_score
+            best_overlap = overlap
+    
+    if best_overlap is None:
+        return None, None
+        
+    # Merge sequences using best overlap
+    merged_seq = low_seq[:best_overlap['start']] + high_seq
+    
+    logging.info("\nSelected best overlap:")
+    logging.info(f"Start position: {best_overlap['start']}")
+    logging.info(f"Length: {best_overlap['length']}")
+    logging.info(f"Edit distance: {best_overlap['edit_distance']}")
+    logging.info(f"Final score: {best_score:.3f}")
+    
+    return merged_seq, best_overlap
 
 def align_reads_to_ref(reads, no_anchor_reads, unique_read_anchors, double_anchor_reads, anchors_on_reads, seq_ref, anchors_on_ref):
     """Align reads to reference sequence starting from anchor positions.

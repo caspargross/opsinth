@@ -45,7 +45,7 @@ class Opsinth:
                                 default=DEFAULTS['export_refbased'],
                                 help="Export reference based alignments (without denovo)")
         self.parser.add_argument('-v', '--verbose', action='count', 
-                               default=2,
+                               default=1,
                                help='Set verbosity level (e.g., -v, -vv, -vvv) Default: -vv')
         self.parser.add_argument('--open-igv', action='store_true', 
                                help='Open IGV.js viewer')
