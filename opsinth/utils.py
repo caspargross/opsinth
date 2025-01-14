@@ -184,37 +184,32 @@ def write_bam(reads_aligned, reads, roi, out, version=VERSION, template_bam = Fa
         }
     
 
-    if output_format_bam:
-        write_format = "wb"
-    else:
-        write_format = "w" # Write in SAM format
-
-    with pysam.AlignmentFile(outfile, write_format, header = header) as outf:
-        for read in reads_aligned:
+    with pysam.AlignmentFile(outfile, 'w' if not output_format_bam else 'wb', header=header) as outf:
+        for read_id, aln in reads_aligned.items():
             
             a = pysam.AlignedSegment()
 
             # Recreate old coordinates for genome references
             if template_bam:
-                a.reference_id  = reads[read]['reference_id']
+                a.reference_id  = aln['reference_id']
                 #a.reference_start = roi[0][1] + reads_aligned[read]['aln']['locations'][0][0]
-                a.tags = reads[read]['tags'] #TODO: Add edit distance, remove obsolete tags
+                a.tags = reads[read_id]['tags'] #TODO: Add edit distance, remove obsolete tags
 
             # Use new coordinates for denovo reference
             else:
                 a.reference_id = 0
                 #a.reference_start =  reads_aligned[read]['aln']['locations'][0][1]
-                a.tags = reads[read]['tags'] #TODO: Add edit distance, remove obsolete tags
+                a.tags = reads[read_id]['tags'] #TODO: Add edit distance, remove obsolete tags
 
             # This is always the same
-            a.query_name = read
+            a.query_name = read_id
             # Reference start is 1-based (POS)
-            a.reference_start = roi[0][1] + reads_aligned[read]['reference_start']
-            a.query_sequence = reads_aligned[read]['seq']
-            a.flag = 0 if reads_aligned[read]['strand'] == "+" else 16
+            a.reference_start = roi[0][1] + aln['reference_start']
+            a.query_sequence = aln['seq']
+            a.flag = 0 if aln['strand'] == "+" else 16
             a.mapping_quality = 30 #Could be adjusted by edit distance ranges
-            a.cigarstring = reads_aligned[read]['aln']['cigar']
-            a.query_qualities = reads_aligned[read]['query_qualities']
+            a.cigarstring = aln['aln']['cigar']
+            a.query_qualities = aln['query_qualities']
 
             outf.write(a)
     
