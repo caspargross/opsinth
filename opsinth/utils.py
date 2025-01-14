@@ -189,19 +189,15 @@ def write_bam(reads_aligned, reads, roi, out, version=VERSION, template_bam = Fa
             
             a = pysam.AlignedSegment()
 
-            # Recreate old coordinates for genome references
             if template_bam:
                 a.reference_id  = aln['reference_id']
-                #a.reference_start = roi[0][1] + reads_aligned[read]['aln']['locations'][0][0]
                 a.tags = reads[read_id]['tags'] #TODO: Add edit distance, remove obsolete tags
 
-            # Use new coordinates for denovo reference
             else:
                 a.reference_id = 0
-                #a.reference_start =  reads_aligned[read]['aln']['locations'][0][1]
+                # Take tags from orignal BAM alignments
                 a.tags = reads[read_id]['tags'] #TODO: Add edit distance, remove obsolete tags
 
-            # This is always the same
             a.query_name = read_id
             # Reference start is 1-based (POS)
             a.reference_start = roi[0][1] + aln['reference_start']

@@ -514,11 +514,11 @@ def align_reads_to_ref(reads, no_anchor_reads, unique_read_anchors, double_ancho
         
         reads_aligned[read] = align_with_edlib(seq, ref, "NW")
         
-        # Calculate reference start
+        # Calculate reference start THIS IF IS STUPID BUT LETS KEEP IT FOR NOW 
         if reads[read]['strand'] == "+" :   # + Forward read
             reads_aligned[read]['reference_start'] = anchor_start_on_ref
         else:                               # - Reverse read
-            reads_aligned[read]['reference_start'] = anchor_end_on_ref - reads_aligned[read]['ref_length'] + 1
+            reads_aligned[read]['reference_start'] = anchor_start_on_ref
 
         # Add read quality and strand
         reads_aligned[read]['query_qualities'] = qual

@@ -20,7 +20,7 @@ setup(
             'resources/*.fa.gz',
             'resources/*.fa.gz.fai',
             'resources/*.fa.gz.gzi',
-            'resources/*.yaml'
+            'resources/*.yaml',
             'resources/*.xml',
         ],
     },
