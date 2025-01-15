@@ -1,6 +1,7 @@
 *__pycache__*
 tests/out/*
 .venv
+data/*.gtf
 .conda_env
 *.egg-info/*
 build

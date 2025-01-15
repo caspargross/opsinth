@@ -1,9 +1,8 @@
 # opsin_analysis/utils.py
-from opsinth import VERSION
 import pysam
 import logging
 import sys
-
+from opsinth.config import VERSION
 def read_bed_file(bed_path):
     roi = []
     with open(bed_path) as f:

@@ -4,4 +4,6 @@ include opsinth/resources/*.fa
 include opsinth/resources/*.fa.gz
 include opsinth/resources/*.fa.gz.fai
 include opsinth/resources/*.fa.gz.gzi
+include opsinth/resources/*.yaml
+include opsinth/resources/*.xml
 include README.md

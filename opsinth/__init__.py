@@ -1,3 +1,5 @@
 # opsinth/__init__.py
 
-VERSION = "0.1"
+from .config import VERSION
+
+__all__ = ['VERSION']
