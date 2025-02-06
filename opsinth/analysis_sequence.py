@@ -246,6 +246,70 @@ def characterize_read_anchors(reads, anchors_on_ref, anchors_on_reads):
 
     return(no_anchor_reads, unique_anchor_reads, double_anchor_reads)
 
+def create_draf_from_overlaps(reads, unique_anchor_reads, anchors_on_ref, anchors_on_reads):
+    logging.info("Create draft ref from single anchor reads")
+
+    # Find reads with lowest and highest anchors
+    low_anchor_reads = {}
+    high_anchor_reads = {}
+    
+    for read_id, anchor in unique_anchor_reads.items():
+        anchor_pos = anchors_on_ref['anchor_positions'][anchor]['start']
+        read_seq = reads[read_id]['seq_query']
+        anchor_on_read = anchors_on_reads[read_id][anchor]['locations'][0]
+        
+        # Use distance threshold to determine low/high anchors
+        anchor_start = anchors_on_ref['anchor_positions'][anchor]['start']
+        first_anchor_pos = anchors_on_ref['anchor_positions'][anchors_on_ref['forward'][0]]['start']
+        last_anchor_pos = anchors_on_ref['anchor_positions'][anchors_on_ref['reverse'][0]]['start']
+        
+        if abs(anchor_start - first_anchor_pos) < CONSTANTS['min_distance_between_anchors']:
+            low_anchor_reads[read_id] = {
+                'seq': read_seq,
+                'anchor_pos': anchor_pos,
+                'read_anchor_start': anchor_on_read[0],
+                'read_anchor_end': anchor_on_read[1],
+                'length': len(read_seq)
+            }
+        elif abs(anchor_start - last_anchor_pos) < CONSTANTS['min_distance_between_anchors']:
+            high_anchor_reads[read_id] = {
+                'seq': read_seq, 
+                'anchor_pos': anchor_pos,
+                'read_anchor_start': anchor_on_read[0],
+                'read_anchor_end': anchor_on_read[1],
+                'length': len(read_seq)
+            }
+            
+    if len(low_anchor_reads) == 0 or len(high_anchor_reads) == 0:
+        logging.error("Could not find reads spanning both ends - cannot create draft reference")
+        return None
+        
+    # Select longest reads from each end
+    best_low_read = max(low_anchor_reads.items(), key=lambda x: x[1]['length'])
+    best_high_read = max(high_anchor_reads.items(), key=lambda x: x[1]['length'])
+    
+    # Extract sequences after low anchor and before high anchor
+    low_seq = best_low_read[1]['seq'][best_low_read[1]['read_anchor_start']:]
+    high_seq = best_high_read[1]['seq'][:best_high_read[1]['read_anchor_end']]
+    
+    # Find overlap and merge sequences
+    merged_seq, overlap = merge_sequences_with_best_overlap(low_seq, high_seq)
+    
+    if merged_seq is None:
+        logging.error("Could not find valid overlap between sequences")
+        return None
+        
+    if overlap['edit_distance'] / overlap['length'] > CONSTANTS['max_mismatch_percentage']:
+        logging.warning("High mismatch in read overlap - draft reference may be unreliable")
+        
+    seq = merged_seq
+    logging.info("Created draft ref from overlapping reads: %s and %s", 
+                best_low_read[0], best_high_read[0])
+    
+    logging.info("Created draft ref from overlapping reads: %s and %s", best_low_read[0], best_high_read[0])
+
+    return(seq)
+
 def create_draft_ref(results_ref):
 
     candidate_reads = {}
@@ -283,77 +347,22 @@ def create_draft_ref(results_ref):
         logging.info("Best read: %s, edit distance: %d, anchor distance: %d", best_read, candidate_reads[best_read]['edit_distance'], candidate_reads[best_read]['anchor_distance'])
 
         seq = reads[best_read]['seq_query'][candidate_reads[best_read]['pos_lower_anchor']:candidate_reads[best_read]['pos_upper_anchor']]
-
+        return seq
     # Option 2: There is no double anchor read, try to find alignment of overlapping reads
     else:
-        logging.info("Create draft ref from single anchor reads")
-        # Get reads with single anchors
-        unique_anchor_reads = results_ref['unique_anchor_reads']
-        anchors_on_ref = results_ref['anchors_on_ref']
-             
-        # Find reads with lowest and highest anchors
-        low_anchor_reads = {}
-        high_anchor_reads = {}
-        
-        for read_id, anchor in unique_anchor_reads.items():
-            anchor_pos = anchors_on_ref['anchor_positions'][anchor]['start']
-            read_seq = reads[read_id]['seq_query']
-            anchor_on_read = anchors_on_reads[read_id][anchor]['locations'][0]
-            
-            # Use distance threshold to determine low/high anchors
-            anchor_start = anchors_on_ref['anchor_positions'][anchor]['start']
-            first_anchor_pos = anchors_on_ref['anchor_positions'][anchors_on_ref['forward'][0]]['start']
-            last_anchor_pos = anchors_on_ref['anchor_positions'][anchors_on_ref['reverse'][0]]['start']
-            
-            if abs(anchor_start - first_anchor_pos) < CONSTANTS['min_distance_between_anchors']:
-                low_anchor_reads[read_id] = {
-                    'seq': read_seq,
-                    'anchor_pos': anchor_pos,
-                    'read_anchor_start': anchor_on_read[0],
-                    'read_anchor_end': anchor_on_read[1],
-                    'length': len(read_seq)
-                }
-            elif abs(anchor_start - last_anchor_pos) < CONSTANTS['min_distance_between_anchors']:
-                high_anchor_reads[read_id] = {
-                    'seq': read_seq, 
-                    'anchor_pos': anchor_pos,
-                    'read_anchor_start': anchor_on_read[0],
-                    'read_anchor_end': anchor_on_read[1],
-                    'length': len(read_seq)
-                }
-                
-        if len(low_anchor_reads) == 0 or len(high_anchor_reads) == 0:
-            logging.error("Could not find reads spanning both ends - cannot create draft reference")
-            return None
-            
-        # Select longest reads from each end
-        best_low_read = max(low_anchor_reads.items(), key=lambda x: x[1]['length'])
-        best_high_read = max(high_anchor_reads.items(), key=lambda x: x[1]['length'])
-        
-        # Extract sequences after low anchor and before high anchor
-        low_seq = best_low_read[1]['seq'][best_low_read[1]['read_anchor_start']:]
-        high_seq = best_high_read[1]['seq'][:best_high_read[1]['read_anchor_end']]
-        
-        # Find overlap between sequences using prefix alignment
-        aln = edlib.align(high_seq, low_seq, task="path", mode="HW")
-        
-        # Find overlap and merge sequences
-        merged_seq, overlap = merge_sequences_with_best_overlap(low_seq, high_seq)
-        
-        if merged_seq is None:
-            logging.error("Could not find valid overlap between sequences")
-            return None
-            
-        if overlap['edit_distance'] / overlap['length'] > CONSTANTS['max_mismatch_percentage']:
-            logging.warning("High mismatch in read overlap - draft reference may be unreliable")
-            
-        seq = merged_seq
-        logging.info("Created draft ref from overlapping reads: %s and %s", 
-                    best_low_read[0], best_high_read[0])
-        
-        logging.info("Created draft ref from overlapping reads: %s and %s", best_low_read[0], best_high_read[0])
+        try:
+            seq = create_draf_from_overlaps(results_ref['reads'], results_ref['unique_anchor_reads'], results_ref['anchors_on_ref'], results_ref['anchors_on_reads'])
+            return seq
+        except:
+            logging.error("Could not create draft ref from overlapping reads")
+            seq = create_draft_from_graph(results_ref['reads'], results_ref['anchors_on_ref'], results_ref['anchors_on_reads'])
+            return seq
 
-    return seq
+def create_draft_ref_from_graph(results_ref):
+
+    logging.info("Create draft ref from graph")
+    logging.warning("Graph based approach not implemented yet")
+    return None
 
 def find_all_overlaps(query_seq, ref_seq, min_block_size=2000, max_edit_distance_pct=15):
     """Find all possible overlap positions between query and reference sequences using a recursive approach.
