@@ -141,8 +141,7 @@ def write_fastq(reads, outfile):
                 
             fastq_file.write(f"@{readname}\n{seq}\n+\n{pysam.qualities_to_qualitystring(quals)}\n")
 
-def write_bam(reads_aligned, reads, roi, out, version=VERSION, template_bam = False , output_format_bam = True):
-
+def write_bam(reads_aligned, reads, roi, out, version=VERSION, template_bam=False, output_format_bam=True):
     out_prefix = out.replace(".sam", "").replace(".bam", "")
     if output_format_bam:
         outfile = f"{out_prefix}.unsorted.bam"
@@ -152,64 +151,60 @@ def write_bam(reads_aligned, reads, roi, out, version=VERSION, template_bam = Fa
 
     # Define PG Line
     pg_line = {
-            'ID': 'opsinth',  # Program ID
-            'PN': 'opsinth',  # Program name
-            'VN': version,             # Program version
-            'CL': ' '.join(sys.argv)  # Command line (you can customize this)
+        'ID': 'opsinth',
+        'PN': 'opsinth',
+        'VN': version,
+        'CL': ' '.join(sys.argv)
     }
 
-    # Take existing header from template bam
-    # Create new header for denovo reference
+    # Get template header and reference mapping
+    ref_id_map = {}
     if template_bam:
         b = pysam.AlignmentFile(template_bam, "rb")
         header = b.header.to_dict()
         
+        # Create mapping of reference names to IDs
+        for i, ref in enumerate(header['SQ']):
+            ref_id_map[ref['SN']] = i
+            
         header['PG'].append(pg_line)
         logging.debug("keep header from template bam and add ['PG'] line: %s", header['PG'])
-    
+        b.close()
     else:
-        # Create a new header for denovo reference
         header = {
-            'HD': {
-                'VN': str(version),
-            },
-            'SQ': [
-                {
-                    'SN': str(roi[0][0]),
-                    'LN': roi[0][2] - roi[0][1]
-                }
-            ],
+            'HD': {'VN': str(version)},
+            'SQ': [{'SN': str(roi[0][0]), 'LN': roi[0][2] - roi[0][1]}],
             'PG': [pg_line]
         }
-    
+        ref_id_map = {str(roi[0][0]): 0}
 
     with pysam.AlignmentFile(outfile, 'w' if not output_format_bam else 'wb', header=header) as outf:
         for read_id, aln in reads_aligned.items():
-            
             a = pysam.AlignedSegment()
-
-            if template_bam:
-                a.reference_id  = aln['reference_id']
-                a.tags = reads[read_id]['tags'] #TODO: Add edit distance, remove obsolete tags
-
-            else:
-                a.reference_id = 0
-                # Take tags from orignal BAM alignments
-                a.tags = reads[read_id]['tags'] #TODO: Add edit distance, remove obsolete tags
+            
+            # Set reference ID using the mapping
+            ref_name = roi[0][0]
+            a.reference_id = ref_id_map.get(ref_name, 0)
+            
+            # Copy tags from original read
+            if read_id in reads:
+                a.tags = reads[read_id]['tags']
+                # Add edit distance tag if available
+                if 'edit_distance' in aln:
+                    a.tags.append(('NM', aln['edit_distance']))
 
             a.query_name = read_id
-            # Reference start is 1-based (POS)
             a.reference_start = roi[0][1] + aln['reference_start']
             a.query_sequence = aln['seq']
             a.flag = 0 if aln['strand'] == "+" else 16
-            a.mapping_quality = 30 #Could be adjusted by edit distance ranges
+            a.mapping_quality = 30
             a.cigarstring = aln['aln']['cigar']
             a.query_qualities = aln['query_qualities']
 
             outf.write(a)
-    
+
     if output_format_bam:
-        # Sort the temporary BAM file and write to the final output BAM file
+        # Sort and index
         sort_successful = False
         index_successful = False
 
@@ -219,18 +214,16 @@ def write_bam(reads_aligned, reads, roi, out, version=VERSION, template_bam = Fa
         except Exception as e:
             logging.error(f"Error sorting BAM file: {e}")
 
-        # Index the sorted BAM file
         try:
             pysam.index(outfile_final)
             index_successful = True
         except Exception as e:
             logging.error(f"Error indexing BAM file: {e}")
 
-        # Remove the temporary BAM file only if both operations were successful
         if sort_successful and index_successful:
             import os
             os.remove(outfile)
-            logging.info("Sorting and Indexing successfull, removed temp output")
+            logging.info("Sorting and Indexing successful, removed temp output")
 
 
 def write_fasta(seq, roi, outfile):

@@ -5,3 +5,5 @@ data/*.gtf
 .conda_env
 *.egg-info/*
 build
+data
+paraphase
