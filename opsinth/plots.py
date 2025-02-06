@@ -5,7 +5,7 @@ import numpy as np
 from opsinth.resources import *
 
 
-def plot_coverage(results, output_prefix):
+def plot_coverage(results, output_prefix, create_file=True):
     logging.debug("Debug plots: Start generating read coverage plot")
     
     coverages = results['anchors_on_ref']['anchor_positions']
@@ -42,12 +42,17 @@ def plot_coverage(results, output_prefix):
 
     plt.stackplot(x, values, step='pre', labels=labels)
     plt.legend()
-    plt.savefig(f"{output_prefix}.plot.coverage_plot.png")
-    plt.close()
-
+ 
+    fig = plt.gcf()
+    if create_file:
+        plt.savefig(f"{output_prefix}.plot.coverage_plot.png")
+        plt.close()
+    else:
+        plt.close()
+        return fig
     logging.info(f"Debug plots: Export read coverage to {output_prefix}.plot.coverage_plot.png")
 
-def plot_alignment_quality(results, output_prefix):
+def plot_alignment_quality(results, output_prefix, create_file=True):
     logging.debug("Debug plots: Start generating alignment quality plot")
 
     edit_distances = []
@@ -81,9 +86,15 @@ def plot_alignment_quality(results, output_prefix):
     plt.ylabel("Edit distance to reference genome")
     plt.title("Edit Distance vs Aligned Read Length")
     plt.xlim(min(matched_query_lengths), max(matched_query_lengths))
-    plt.savefig(f"{output_prefix}.plot.alignment_quality_plot.png")
-    plt.close()
 
+    fig = plt.gcf()
+    if create_file:
+        plt.savefig(f"{output_prefix}.plot.alignment_quality_plot.png")
+        plt.close()
+    else:
+        plt.close()
+        return fig
+    
     logging.info(f"Debug plots: Export alignment quality to {output_prefix}.plot.alignment_quality_plot.png")
 
 def plot_polish_stats(polish_stats, output_prefix):

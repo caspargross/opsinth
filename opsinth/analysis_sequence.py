@@ -162,8 +162,10 @@ def find_anchors_on_reads(reads, anchors):
         seq = reads[read]['seq_query']
         anchor_alignments[read] = {}
         for anchor in anchors['anchor_positions']:
-            aln = edlib.align(anchors['anchor_positions'][anchor]['seq'], seq, task="path", mode="HW")
+            anchor_seq = anchors['anchor_positions'][anchor]['seq']
+            aln = edlib.align(anchor_seq, seq, task="path", mode="HW")
             anchor_alignments[read][anchor] = aln
+            anchor_alignments[read][anchor]['query'] = anchor_seq
 
     logging.debug("Length of anchor table: %d", len(anchor_alignments))
 
@@ -246,7 +248,7 @@ def characterize_read_anchors(reads, anchors_on_ref, anchors_on_reads):
 
     return(no_anchor_reads, unique_anchor_reads, double_anchor_reads)
 
-def create_draf_from_overlaps(reads, unique_anchor_reads, anchors_on_ref, anchors_on_reads):
+def create_draft_from_overlaps(reads, unique_anchor_reads, anchors_on_ref, anchors_on_reads):
     logging.info("Create draft ref from single anchor reads")
 
     # Find reads with lowest and highest anchors
@@ -351,14 +353,14 @@ def create_draft_ref(results_ref):
     # Option 2: There is no double anchor read, try to find alignment of overlapping reads
     else:
         try:
-            seq = create_draf_from_overlaps(results_ref['reads'], results_ref['unique_anchor_reads'], results_ref['anchors_on_ref'], results_ref['anchors_on_reads'])
+            seq = create_draft_from_overlaps(results_ref['reads'], results_ref['unique_anchor_reads'], results_ref['anchors_on_ref'], results_ref['anchors_on_reads'])
             return seq
         except:
             logging.error("Could not create draft ref from overlapping reads")
             seq = create_draft_from_graph(results_ref['reads'], results_ref['anchors_on_ref'], results_ref['anchors_on_reads'])
             return seq
 
-def create_draft_ref_from_graph(results_ref):
+def create_draft_from_graph(results_ref):
 
     logging.info("Create draft ref from graph")
     logging.warning("Graph based approach not implemented yet")
