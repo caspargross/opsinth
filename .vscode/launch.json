@@ -78,6 +78,14 @@
                 "--output", "test.exon"
             ],
             "justMyCode": true
+        },
+        {
+            "name": "Run test_graph",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/tests/test_graph.py",
+            "console": "integratedTerminal",
+            "justMyCode": false
         }
     ]
 }
