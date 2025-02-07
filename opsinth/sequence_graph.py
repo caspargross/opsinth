@@ -50,7 +50,6 @@ class SequenceGraph:
                     if aln['editDistance'] / len(aln['query']) <= max_edit_distance:
                         node_id = f"anchor_{anchor_id}".replace('anchor_anchor', 'anchor')
                         if node_id in self.nodes:
-                            # Use the actual alignment locations from anchor data
                             for start, end in aln['locations']:
                                 read_matches[read_id].append((node_id, start, end, aln['editDistance']))
                                 logging.debug(f"Phase 1: Found anchor match: read {read_id} -> {node_id} at pos {start}-{end}")
@@ -58,41 +57,44 @@ class SequenceGraph:
         # Phase 2: Process paraphase connections
         if paraphase_data:
             logging.info("Phase 2: Processing paraphase connections")
-            for gene, gene_data in paraphase_data.items():
-                if 'final_haplotypes' not in gene_data:
-                    continue
-                
-                # Process unique supporting reads
-                if 'unique_supporting_reads' in gene_data:
-                    for hap_seq, hap_id in gene_data['final_haplotypes'].items():
-                        supporting_reads = gene_data['unique_supporting_reads'].get(hap_seq, [])
-                        for read_id in supporting_reads:
-                            if read_id in reads_aligned:
-                                read_seq = reads_aligned[read_id]['seq']
-                                # Find actual alignment positions
-                                result = edlib.align(hap_seq, read_seq, task='locations', mode='HW')
-                                if result['editDistance'] / len(hap_seq) <= max_edit_distance:
-                                    for start, end in result['locations']:
-                                        read_matches[read_id].append((hap_id, start, end, result['editDistance']))
-                                        logging.debug(f"Phase 2: Found unique match: read {read_id} -> {hap_id} at pos {start}-{end}")
-
-                # Process non-unique supporting reads
-                if 'nonunique_supporting_reads' in gene_data:
-                    for hap_seq, hap_id in gene_data['final_haplotypes'].items():
-                        nonunique_reads = gene_data['nonunique_supporting_reads'].get(hap_seq, [])
-                        for read_id in nonunique_reads:
-                            if read_id in reads_aligned:
-                                read_seq = reads_aligned[read_id]['seq']
-                                result = edlib.align(hap_seq, read_seq, task='locations', mode='HW')
-                                if result['editDistance'] / len(hap_seq) <= max_edit_distance:
+            logging.debug(f"Paraphase data keys: {list(paraphase_data.keys())}")
+            
+            # Process non-unique supporting reads
+            if 'nonunique_supporting_reads' in paraphase_data:
+                logging.debug(f"Processing non-unique reads: {len(paraphase_data['nonunique_supporting_reads'])} reads")
+                for read_id, haplotypes in paraphase_data['nonunique_supporting_reads'].items():
+                    if read_id in reads_aligned:
+                        read_seq = reads_aligned[read_id]['seq']
+                        for hap_id in haplotypes:
+                            if hap_id in self.nodes:
+                                result = edlib.align(self.nodes[hap_id].ref_sequence, read_seq,
+                                                  task='locations',
+                                                  mode='HW')
+                                
+                                if result['editDistance'] / len(self.nodes[hap_id].ref_sequence) <= max_edit_distance:
                                     for start, end in result['locations']:
                                         read_matches[read_id].append((hap_id, start, end, result['editDistance']))
                                         logging.debug(f"Phase 2: Found non-unique match: read {read_id} -> {hap_id} at pos {start}-{end}")
+            
+            # Process unique supporting reads
+            if 'unique_supporting_reads' in paraphase_data:
+                logging.debug(f"Processing unique reads: {len(paraphase_data['unique_supporting_reads'])} reads")
+                for read_id, hap_id in paraphase_data['unique_supporting_reads'].items():
+                    if read_id in reads_aligned and hap_id in self.nodes:
+                        read_seq = reads_aligned[read_id]['seq']
+                        result = edlib.align(self.nodes[hap_id].ref_sequence, read_seq,
+                                          task='locations',
+                                          mode='HW')
+                        
+                        if result['editDistance'] / len(self.nodes[hap_id].ref_sequence) <= max_edit_distance:
+                            for start, end in result['locations']:
+                                read_matches[read_id].append((hap_id, start, end, result['editDistance']))
+                                logging.debug(f"Phase 2: Found unique match: read {read_id} -> {hap_id} at pos {start}-{end}")
 
         # Log match statistics
         logging.info(f"Found matches for {len(read_matches)} reads")
         for read_id, matches in read_matches.items():
-            logging.debug(f"Read {read_id} has {len(matches)} matches")
+            logging.debug(f"Read {read_id} has {len(matches)} matches: {matches}")
 
         # Create edges from all collected matches
         logging.info("Creating edges from collected matches")
@@ -100,30 +102,37 @@ class SequenceGraph:
             if len(matches) >= 2:
                 # Sort matches by position in read
                 sorted_matches = sorted(matches, key=lambda x: x[1])  # x[1] is start pos
+                logging.debug(f"Sorted matches for read {read_id}: {sorted_matches}")
                 
-                # Add edges between consecutive matches that don't overlap
+                # Add edges between consecutive non-overlapping matches
                 for i in range(len(sorted_matches)-1):
-                    for j in range(i+1, len(sorted_matches)):
-                        curr_node, curr_start, curr_end, curr_dist = sorted_matches[i]
-                        next_node, next_start, next_end, next_dist = sorted_matches[j]
-                        
-                        if curr_end <= next_start:
-                            edge = (curr_node, next_node)
-                            edge_support[edge].append({
-                                'read_id': read_id,
-                                'from_start': curr_start,
-                                'from_end': curr_end,
-                                'from_dist': curr_dist,
-                                'to_start': next_start,
-                                'to_end': next_end,
-                                'to_dist': next_dist
-                            })
-                            logging.debug(f"Adding edge: {curr_node} -> {next_node} supported by read {read_id}")
+                    curr_node, curr_start, curr_end, curr_dist = sorted_matches[i]
+                    next_node, next_start, next_end, next_dist = sorted_matches[i+1]
+                    
+                    # Only create edge if positions don't overlap and nodes are different
+                    if curr_end <= next_start and curr_node != next_node:
+                        edge = (curr_node, next_node)
+                        support_info = {
+                            'read_id': read_id,
+                            'from_start': curr_start,
+                            'from_end': curr_end,
+                            'from_dist': curr_dist,
+                            'to_start': next_start,
+                            'to_end': next_end,
+                            'to_dist': next_dist
+                        }
+                        edge_support[edge].append(support_info)
+                        logging.debug(f"Adding edge: {curr_node} -> {next_node} supported by read {read_id} "
+                                    f"(positions: {curr_start}-{curr_end} -> {next_start}-{next_end})")
 
         # Add all discovered edges to graph
+        edge_count = 0
         for (from_node, to_node), supports in edge_support.items():
             self.add_edge(from_node, to_node, weight=len(supports), reads=supports)
+            edge_count += 1
             logging.info(f"Added edge {from_node} -> {to_node} with {len(supports)} supporting reads")
+        
+        logging.info(f"Created {edge_count} edges in total")
 
     def _find_node_matches_in_read(self, read_seq, node_id, node):
         """Find all occurrences of a node's sequence in a read.
@@ -325,14 +334,13 @@ class SequenceGraph:
         
         return sorted(mapped_nodes, key=lambda x: x['start'])
 
-    def read_sequences_from_fasta(self, fasta_path):
-        """Read sequences from FASTA file and add them to corresponding nodes.
+class SequenceManager:
+    def __init__(self):
+        self.sequences = {}
         
-        Args:
-            fasta_path (str): Path to FASTA file containing node sequences
-        """
-        logging.info(f"Reading sequences from {fasta_path}")
-        
+    def add_fasta_file(self, fasta_path):
+        """Read sequences from FASTA file."""
+        logging.info(f"Reading sequences from FASTA file: {fasta_path}")
         current_id = None
         current_seq = []
         
@@ -340,81 +348,105 @@ class SequenceGraph:
             for line in f:
                 line = line.strip()
                 if line.startswith('>'):
-                    # Save previous sequence if exists
                     if current_id and current_seq:
-                        seq = ''.join(current_seq)
-                        self._add_sequence_to_node(current_id, seq)
-                    
-                    # Start new sequence
+                        self.sequences[current_id] = ''.join(current_seq)
+                        logging.debug(f"Read FASTA sequence: {current_id} ({len(self.sequences[current_id])}bp)")
                     current_id = line[1:].split()[0]  # Remove '>' and take first word
+                    logging.debug(f"Found FASTA header: {line} -> parsed ID: {current_id}")
                     current_seq = []
                 elif line:
                     current_seq.append(line)
         
-        # Save last sequence
         if current_id and current_seq:
-            seq = ''.join(current_seq)
-            self._add_sequence_to_node(current_id, seq)
-
-    def _add_sequence_to_node(self, seq_id, sequence):
-        """Add reference sequence to corresponding node."""
-        # Map FASTA ID to node ID
-        if seq_id.startswith('anchor_'):
-            # Remove double prefix if present
-            node_id = seq_id.replace('anchor_anchor', 'anchor')
-        elif seq_id.startswith('OPN1'):
-            # Map paraphase haplotype IDs to standard gene names
-            if seq_id.startswith('OPN1MW'):
-                node_id = 'opn1mw_hap1'
-            elif seq_id.startswith('OPN1LW'):
-                node_id = 'opn1lw_hap1'
-            else:
-                logging.warning(f"Unknown OPN1 gene format: {seq_id}")
-                return
-        elif seq_id == 'LCR':
-            node_id = 'LCR'
-        else:
-            logging.warning(f"Unknown sequence ID format: {seq_id}")
-            return
+            self.sequences[current_id] = ''.join(current_seq)
+            logging.debug(f"Read final FASTA sequence: {current_id} ({len(self.sequences[current_id])}bp)")
         
-        if node_id in self.nodes:
-            self.nodes[node_id].ref_sequence = sequence
-            logging.debug(f"Added reference sequence ({len(sequence)}bp) to node {node_id}")
+        logging.info(f"Added {len(self.sequences)} sequences from FASTA file")
+        logging.debug(f"Available sequence IDs: {list(self.sequences.keys())}")
+    
+    def add_sequences(self, sequences):
+        """Add sequences from dictionary."""
+        logging.info(f"Adding {len(sequences)} sequences from dictionary")
+        self.sequences.update(sequences)
+        logging.debug(f"Available sequence IDs: {list(self.sequences.keys())}")
+    
+    def get_sequence(self, node_id):
+        """Get sequence for a node ID."""
+        if node_id.startswith('opn1mw'):
+            fasta_id = 'OPN1MW'
+        elif node_id.startswith('opn1lw'):
+            fasta_id = 'OPN1LW'
+        elif node_id.startswith('anchor_'):
+            # Keep the full anchor ID for FASTA lookup
+            fasta_id = node_id
+        elif node_id == 'LCR':
+            fasta_id = 'LCR'
+        elif node_id == 'OPN1MW' or node_id == 'OPN1LW':
+            # Handle standardized gene names
+            fasta_id = node_id
         else:
-            logging.warning(f"No matching node found for sequence {seq_id}")
-
-def parse_paraphase_json(json_path):
-    """Parse Paraphase JSON output and extract haplotype sequences"""
-    with open(json_path) as f:
-        data = json.load(f)
-    
-    nodes = {}
-    logging.debug(f"Parsed json {json_path} with {len(data)} root nodes")
-    
-    # Process genes
-    for gene in ['opn1lw']:
-        if gene in data:
-            gene_data = data[gene]
-            nodes[gene] = []
+            logging.warning(f"Unknown node ID format: {node_id}")
+            return None
             
-            # Extract haplotype sequences and their supporting reads
-            for hap_seq, hap_id in gene_data['final_haplotypes'].items():
-                metadata = {
-                    'supporting_reads': gene_data.get('unique_supporting_reads', {}).get(hap_seq, []),
-                    'annotated_type': gene_data.get('annotated_haplotypes', {}).get(hap_id),
-                }
-                
-                node = SequenceNode(
-                    id=hap_id,
-                    sequence=hap_seq,
-                    source='paraphase',
-                    metadata=metadata
-                )
-                nodes[gene].append(node)
-    
-    return nodes
+        if fasta_id in self.sequences:
+            logging.debug(f"Found sequence for node {node_id} (FASTA ID: {fasta_id}, length: {len(self.sequences[fasta_id])}bp)")
+            return self.sequences[fasta_id]
+        else:
+            logging.warning(f"No sequence found for node {node_id} (FASTA ID: {fasta_id})")
+            return None
 
-def create_sequence_graph(results_ref, paraphase_nodes):
+def parse_paraphase_nodes(paraphase_json):
+    """Parse Paraphase output JSON into nodes.
+    
+    Args:
+        paraphase_json (dict): Paraphase output JSON data
+        
+    Returns:
+        dict: Dictionary mapping gene names to lists of nodes
+        dict: Supporting reads data structure
+    """
+    nodes = defaultdict(list)
+    supporting_reads = {
+        'unique_supporting_reads': {},
+        'nonunique_supporting_reads': {}
+    }
+    
+    for gene, gene_data in paraphase_json.items():
+        if 'haplotypes' not in gene_data:
+            continue
+            
+        logging.debug(f"Processing gene {gene}")
+        
+        # Process haplotypes
+        for hap_id, hap_data in gene_data['haplotypes'].items():
+            sequence = hap_data.get('sequence', '')
+            node = SequenceNode(
+                id=hap_id,
+                sequence=sequence,
+                source='paraphase',
+                metadata={'gene': gene}
+            )
+            nodes[gene].append(node)
+            
+        # Process unique supporting reads
+        if 'unique_supporting_reads' in gene_data:
+            for read_id, hap_id in gene_data['unique_supporting_reads'].items():
+                supporting_reads['unique_supporting_reads'][read_id] = hap_id
+                logging.debug(f"Added unique supporting read {read_id} -> {hap_id}")
+                
+        # Process non-unique supporting reads
+        if 'nonunique_supporting_reads' in gene_data:
+            for read_id, haplotypes in gene_data['nonunique_supporting_reads'].items():
+                supporting_reads['nonunique_supporting_reads'][read_id] = haplotypes
+                logging.debug(f"Added non-unique supporting read {read_id} -> {haplotypes}")
+    
+    logging.info(f"Parsed {sum(len(n) for n in nodes.values())} nodes from {len(nodes)} genes")
+    logging.info(f"Found {len(supporting_reads['unique_supporting_reads'])} unique and "
+                f"{len(supporting_reads['nonunique_supporting_reads'])} non-unique supporting reads")
+    
+    return nodes, supporting_reads
+
+def create_sequence_graph(results_ref, paraphase_nodes, sequence_manager):
     """Create initial graph from anchors and Paraphase haplotypes"""
     graph = SequenceGraph()
     
@@ -423,28 +455,29 @@ def create_sequence_graph(results_ref, paraphase_nodes):
     for anchor_id, seq in anchors.items():
         # Remove potential double prefix
         node_id = f"anchor_{anchor_id}".replace('anchor_anchor', 'anchor')
+        sequence = sequence_manager.get_sequence(node_id)
         node = SequenceNode(
             id=node_id,
             sequence=seq,
-            source='anchor'
+            source='anchor',
+            ref_sequence=sequence
         )
         graph.add_node(node)
     
-    # Add Paraphase haplotype nodes with standardized names
+    # Add Paraphase haplotype nodes
     for gene, nodes in paraphase_nodes.items():
         for node in nodes:
-            # Map haplotype IDs to standard gene names
-            if node.id.startswith('opn1mw'):
-                node.id = 'OPN1MW'
-            elif node.id.startswith('opn1lw'):
-                node.id = 'OPN1LW'
+            sequence = sequence_manager.get_sequence(node.id)
+            node.ref_sequence = sequence
             graph.add_node(node)
     
     # Add LCR node
+    sequence = sequence_manager.get_sequence('LCR')
     lcr_node = SequenceNode(
         id='LCR',
-        sequence='',  # Will be filled from FASTA file
-        source='regulatory'
+        sequence='',
+        source='regulatory',
+        ref_sequence=sequence
     )
     graph.add_node(lcr_node)
     
